@@ -14,13 +14,15 @@
 
 pub mod config;
 pub mod pricing;
+pub mod risk;
 pub mod stream;
 pub mod venue;
 
 pub use config::{Config, ConfigError, PositionSizing, RuntimeMode};
 pub use pricing::{CurveReserves, FeeBps, QuoteError};
+pub use risk::{MintFacts, RiskFilter, Verdict};
 pub use stream::logs::{PumpActivity, PUMP_PROGRAM_ID};
 pub use venue::pumpfun::{PumpFunDecoder, RawInstruction, RawTransaction};
-pub use venue::{LaunchEvent, Venue, VenueKind};
+pub use venue::{LaunchEvent, RiskFlag, Venue, VenueKind};
 
 pub use sniper_telemetry::{Metrics, Stage};

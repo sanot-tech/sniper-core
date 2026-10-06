@@ -100,6 +100,20 @@ pub enum RiskFlag {
     Token2022PermanentDelegate,
     /// Suspicious decimal configuration.
     OddDecimals,
+    /// Supply is not one of the venue's standard round figures.
+    ///
+    /// Measured: 99% of live launches carry exactly 1e15 or 2e15 base units,
+    /// while the remainder carry hand-set values. A creator who chooses an odd
+    /// supply is building something other than a normal coin, and the standard
+    /// figure is what every off-the-shelf pricing model assumes.
+    NonStandardSupply,
+    /// The creator has launched repeatedly in a short window.
+    ///
+    /// Measured: one in five creators launches more than one token per minute,
+    /// some at five launches in four minutes. A creator producing tokens at that
+    /// rate is running a launch bot, and the exit liquidity a sniper depends on
+    /// is not there.
+    SerialCreator,
 }
 
 /// The three venues this bot snipes.

@@ -30,6 +30,9 @@ fetch-fixtures = "run -p xtask --bin fetch-fixtures --"
 # are not merely worse, they are a different universe, and this tool's whole
 # purpose is measuring how fast a launch is seen.
 watch = "run -p sniper-cli --bin watch-launches --release --"
+# Chapter 6's evidence: sample live launches and report what their mint accounts
+# actually contain, so filter thresholds come from data rather than intuition.
+risk-probe = "run -p sniper-cli --bin risk-probe --release --"
 
 [build]
 # Keep incremental compilation off for release: a sniper binary is small and

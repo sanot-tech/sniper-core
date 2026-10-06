@@ -1,0 +1,34 @@
+[package]
+name = "sniper-telemetry"
+# The development archetype: high performance with minimal per-decision cost.
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+license = "MIT"
+description = "Zero-cost hot-path telemetry for the Solana sniper: lock-free counters, allocation-free probes and bounded trace rings."
+
+[features]
+# ---------------------------------------------------------------------------
+# debug-trace: ON  -> every hot-path stage is timed with Instant::now().
+# debug-trace: OFF -> probes compile to nothing, counters stay on.
+#
+# This is the core of the archetype. Debug presence must not tax production:
+# instrumentation is a build flag, not a runtime switch, so the release
+# binary never pays for it. Counters use Relaxed atomics (~1 ns) and stay on
+# in every build because they are what the operator actually watches.
+# ---------------------------------------------------------------------------
+default = []
+debug-trace = []
+
+[dependencies]
+# Intentionally ZERO external dependencies.
+# Every millisecond and every nanosecond in the hot path matters, so the
+# measurement layer must not drag serde/regex/logging machinery into the build.
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }

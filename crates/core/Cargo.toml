@@ -1,0 +1,17 @@
+[package]
+name = "sniper-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+license = "MIT"
+description = "Venue adapters, decoding, pricing, risk filtering, execution and position management for the Solana sniper."
+
+[dependencies]
+sniper-telemetry = { path = "../telemetry", version = "0.1.0" }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+sniper-telemetry = { path = "../telemetry", version = "0.1.0" }

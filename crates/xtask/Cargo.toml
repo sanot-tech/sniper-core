@@ -1,0 +1,13 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+publish = false
+description = "Project automation. Starts with Gatekeeper: the preflight that refuses to let the bot build on a broken environment."
+# Intentionally zero dependencies: the preflight must build faster than
+# anything it is meant to guard.
+
+[lints]
+workspace = true

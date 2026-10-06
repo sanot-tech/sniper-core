@@ -1,0 +1,15 @@
+[package]
+name = "sniper-cli"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+license = "MIT"
+description = "Sniper bot executable: runtime flags and process supervision entry point."
+
+[dependencies]
+sniper-core = { path = "../core", version = "0.1.0" }
+sniper-telemetry = { path = "../telemetry", version = "0.1.0" }
+
+[lints]
+workspace = true

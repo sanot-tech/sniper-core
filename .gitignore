@@ -1,0 +1,91 @@
+# ============================================================================
+# SECRETS — the single most important rule in this repository.
+# A leaked Solana private key means losing every dollar in the wallet.
+# Anything below must NEVER be committed.
+# ============================================================================
+
+# private keys (solana-keygen writes a 64-byte array: [.., ..])
+*.key
+key.json
+keys/
+*.keypair
+id.json
+wallet.json
+hot-wallet.json
+cold-wallet.json
+
+# env files — real values live here, templates are tracked
+.env
+.env.*
+!.env.example
+
+# credential manager leftovers / shell history dumps
+*.pem
+*.p12
+*.pfx
+credentials.json
+netrc
+.netrc
+_netrc
+known_hosts
+askpass*.cmd
+askpass*.bat
+*.ppk
+*.kdbx
+
+# git-credential / gh leftovers
+.git-credentials
+gh_token.txt
+
+# ============================================================================
+# BUILD ARTIFACTS
+# ============================================================================
+target/
+debug/
+release/
+*.pdb
+*.ilk
+*.exp
+*.lib
+Cargo.lock.bak
+
+# ============================================================================
+# FIXTURES WITH CHAIN DATA (large + account state dumps)
+# ============================================================================
+# dumped on-chain programs (SBF bytecode) — big binaries, refetchable by script
+fixtures/programs/
+*.so
+*.rlib
+*.dll
+# dumped accounts / captured streams can contain other people's keys-adjacent data
+fixtures/accounts/
+fixtures/streams/*.raw
+*.bin
+
+# ============================================================================
+# LOGS + RUNTIME STATE
+# ============================================================================
+logs/
+*.log
+positions.db*
+*.sqlite
+*.sqlite3
+state/
+*.pid
+*.lock
+
+# ============================================================================
+# SECRETS SCANNER OUTPUT (chapter 11 — SecretSentinel)
+# ============================================================================
+target/secret-sentinel/
+target/secret-sentinel-report.json
+
+# ============================================================================
+# LOCAL TOOLING
+# ============================================================================
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store

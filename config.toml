@@ -1,0 +1,80 @@
+# =============================================================================
+# sniper-core — public configuration.
+#
+# SAFE TO COMMIT. Contains no secrets; every credential lives in .env which is
+# gitignored and verified as untracked by Gatekeeper.
+#
+# The values here are the operating point agreed for the first live stage.
+# =============================================================================
+
+[runtime]
+# paper  = real subscription + real building, broadcast replaced by logging
+# dry-run= fully offline, fixtures only
+# devnet = real network, worthless SOL
+# live   = real money; requires every gate in chapter 12 to be satisfied
+mode = "paper"
+
+[venues]
+# Order matters only for subscription setup. A venue whose program id is not
+# yet verified against the pinned IDL cannot be used in live mode.
+enabled = ["pumpfun", "pumpswap", "raydium-launchlab"]
+
+[position]
+# 0.02 SOL per entry. Small enough that a bad run is survivable, which is the
+# only reason a first live run is a sensible idea at all.
+size_sol = 0.02
+# Refuse to hold more than this many entries at once.
+max_open = 5
+# Hard cap per day, independent of PnL. Bounds the fee burn when the bot is
+# confidently wrong rather than merely unlucky.
+max_trades_per_day = 100
+
+[risk]
+# 1..=10, higher is worse. 3 keeps the obviously hostile launches out while
+# still letting normal launches through.
+max_risk_score = 3
+# Tier 1 checks are free and instant (from bytes we already have).
+# Tier 2 checks are network calls and run AFTER the buy, as insurance.
+enable_tier_two_after_buy = true
+# If a tier-2 provider is down, do NOT block new buys on its failure.
+fail_open_on_provider_error = true
+
+[exit]
+# Take profit / stop loss as multiples of entry price.
+take_profit_x = 2.0
+stop_loss_x = 0.6
+# Trailing stop: "<gain>%:<giveback>%" pairs, comma separated.
+trailing = "20:5,50:10,100:30,200:100"
+# Give up on a token that has not moved after this long.
+max_hold_seconds = 900
+
+[execution]
+# skip_preflight trades a simulation for latency. Only safe because chapters
+# 1-4 simulate every transaction path before mainnet ever sees it.
+skip_preflight = true
+# 0, never null: null means "retry until the blockhash expires", which turns a
+# transient failure into a wallet drain.
+max_retries = 0
+# Send to every route at once; first success wins.
+fanout = ["jito", "helius-sender", "rpc"]
+# Jito rejects bundles below 1000 lamports of tip.
+jito_min_tip_lamports = 1000
+# Dynamic tip from the public tip-floor feed.
+jito_tip_dynamic = true
+# Include the jitodontfront marker so the block engine will only accept the
+# bundle if our transaction is first — this is the sandwich defence.
+sandwich_protection = true
+
+[detector]
+# processed is the only acceptable commitment for detection.
+# confirmed adds roughly 400 ms, which is the entire value proposition gone.
+commitment = "processed"
+# Fail loudly instead of silently running blind.
+crash_on_stream_gap = true
+
+[telemetry]
+# Always-on counters: free.
+# Sampled traces: bounded memory, oldest-first eviction.
+trace_capacity = 256
+# Share of decisions to record in detail. 1.0 in paper mode, lower in live.
+trace_sample_rate = 1.0

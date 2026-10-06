@@ -1,0 +1,124 @@
+# =============================================================================
+# sniper-core — Solana sniper bot workspace
+#
+# Archetype: high performance with minimal overhead, permanent debug presence.
+#
+# Crate layout mirrors the latency pipeline, so you can always tell which
+# layer is responsible for a delay:
+#
+#   sniper-telemetry  measurement primitives (no dependencies, no allocation)
+#   sniper-core       venues, decoding, pricing, risk, execution, positions
+#   sniper-cli        the bot binary and its flags
+#   xtask             project automation, starting with the Gatekeeper preflight
+# =============================================================================
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/telemetry",
+    "crates/core",
+    "crates/cli",
+    "crates/xtask",
+]
+
+# -----------------------------------------------------------------------------
+# Shared dependency versions.
+# Pinned in one place so a version bump never has to be hunted across crates.
+# -----------------------------------------------------------------------------
+[workspace.dependencies]
+# --- internal ---
+sniper-telemetry = { path = "crates/telemetry" }
+sniper-core = { path = "crates/core" }
+
+# --- Solana stack ---
+# The official pump.fun Rust SDK: instruction builders, quoting math, PDA
+# helpers and account decoders for both the bonding curve and the AMM.
+# Last published 29.09.2026 (MIT).
+pump-rust-client = "0.2"
+solana-sdk = "2.1"
+solana-client = "2.1"
+spl-token = "7"
+spl-token-2022 = "6"
+spl-associated-token-account-interface = "2"
+anchor-lang = "0.31"
+
+# --- streaming ---
+# Yellowstone (Geyser) gRPC: the lowest-latency way to see transactions.
+yellowstone-grpc-client = "1"
+yellowstone-grpc-proto = "1"
+tonic = "0.12"
+prost = "0.13"
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+futures = "0.3"
+
+# --- transport ---
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
+axum = "0.8"
+
+# --- serialization ---
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+bs58 = "0.5"
+
+# --- errors / logging ---
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# --- config ---
+clap = { version = "4", features = ["derive", "env"] }
+dotenvy = "0.15"
+
+# =============================================================================
+# Build profile.
+#
+# release:  thin LTO + codegen-units=1 because the bot ships as one process and
+#           cross-crate inlining in the hot path is worth the build time.
+#           panic=abort removes unwind tables — a measurable win for the
+#           hot path and acceptable because the bot is supervised and
+#           restarted by systemd, never expected to survive a panic.
+# dev:     opt-level 1 instead of 0. Unoptimized timing numbers are useless,
+#           and we do not care about dev compile speed for a project this size.
+# =============================================================================
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 1
+
+# Faster `cargo test --release` runs without rebuilding dependencies.
+[profile.test]
+opt-level = 2
+
+# =============================================================================
+# Lints — enforced workspace-wide.
+# =============================================================================
+[workspace.lints.rust]
+# A `unsafe` block in this project would be a review event. The telemetry
+# crate forbids it outright; keep that guarantee everywhere.
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Numerics in trading code must be converted deliberately, not by accident.
+cast_precision_loss = "allow"
+cast_possible_truncation = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+# =============================================================================
+# Cargo aliases live in .cargo/config.toml — [alias] is not a valid key in
+# Cargo.toml (cargo warns and ignores it).
+# =============================================================================

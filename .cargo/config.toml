@@ -1,0 +1,35 @@
+# =============================================================================
+# Cargo configuration for the sniper workspace.
+#
+# Aliases keep the chapter-by-chapter commands short enough to type without
+# thinking, which matters when the workflow is "run the autotest for this
+# chapter, then commit".
+# =============================================================================
+
+[alias]
+# --- test loop ---------------------------------------------------------------
+# Debug build of the whole workspace: the loop used while writing a chapter.
+t = "test --workspace"
+# Release build: mandatory before any latency measurement. Numbers from a
+# debug build are meaningless and worse than no numbers at all.
+tr = "test --workspace --release"
+# The production-shaped build used for benchmarking and deployment.
+b = "build --workspace --release"
+# --- quality gates -----------------------------------------------------------
+f = "fmt --all"
+c = "clippy --workspace --all-targets -- -D warnings"
+# --- chapter automation ------------------------------------------------------
+# Chapter 0's autotest system: environment preflight.
+gate = "run -p xtask -- gatekeeper"
+
+[build]
+# Keep incremental compilation off for release: a sniper binary is small and
+# built rarely, and incremental artifacts have no value in production.
+incremental = true
+
+[term]
+color = "always"
+
+[net]
+# Fail fast instead of hanging a build behind a dead mirror.
+retry = 2

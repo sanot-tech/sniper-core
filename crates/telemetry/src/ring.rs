@@ -52,7 +52,7 @@ impl<T> TraceRing<T> {
     /// Number of records currently held.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.inner.lock().map(|q| q.len()).unwrap_or(0)
+        self.inner.lock().map_or(0, |q| q.len())
     }
 
     #[must_use]
@@ -152,7 +152,11 @@ mod tests {
         }
         // The whole point: bounded memory no matter the input volume.
         assert!(ring.len() <= 64);
-        assert_eq!(ring.len() + ring.evicted() as usize, 2_000);
+        // Counted plus evicted must account for every single push. Saturating
+        // rather than casting, so the assertion cannot be satisfied by a
+        // truncated count on a 32-bit target.
+        let evicted = usize::try_from(ring.evicted()).unwrap_or(usize::MAX);
+        assert_eq!(ring.len() + evicted, 2_000);
     }
 
     #[test]

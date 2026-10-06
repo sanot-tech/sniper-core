@@ -16,9 +16,15 @@ use crate::venue::VenueKind;
 /// Position size expressed in lamports.
 ///
 /// `u64` lamports, never `f64` SOL: floating point rounding on a money value
-/// is a bug waiting to happen, and 1 SOL = 1_000_000_000 lamports exactly.
+/// is a bug waiting to happen, and `1 SOL = 1_000_000_000` lamports exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PositionSizing(u64);
+
+/// Live-stage cap on a single entry: 0.02 SOL.
+///
+/// Module level rather than function level so the promotion rule has exactly
+/// one definition. Two copies of a money limit is two chances to disagree.
+const LIVE_POSITION_CAP_LAMPORTS: u64 = PositionSizing::ONE_SOL / 50;
 
 impl PositionSizing {
     /// 1 SOL in lamports.
@@ -37,7 +43,17 @@ impl PositionSizing {
     /// silently round.
     #[must_use]
     pub fn from_sol(sol: f64) -> Self {
-        let lamports = (sol * Self::ONE_SOL as f64).round() as u64;
+        // The cast is guarded, not trusted: a negative or absurd input must not
+        // silently wrap into a huge position, so it is asserted immediately
+        // below rather than relying on the caller's discipline. std has no
+        // `TryFrom<f64> for u64`, so the bound is enforced here by hand.
+        let raw = (sol * Self::ONE_SOL as f64).round();
+        assert!(
+            raw >= 0.0 && raw <= Self::ONE_SOL as f64 * 1_000.0,
+            "position size out of range: {sol} SOL",
+        );
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let lamports = raw as u64;
         assert!(
             (lamports as f64 / Self::ONE_SOL as f64 - sol).abs() < 1e-9,
             "position size must be an exact number of lamports, got {sol} SOL",
@@ -63,7 +79,7 @@ impl PositionSizing {
     /// in-process half of that rule.
     #[must_use]
     pub fn is_live_safe(&self) -> bool {
-        self.0 <= Self::ONE_SOL / 50 // 0.02 SOL
+        self.0 <= LIVE_POSITION_CAP_LAMPORTS
     }
 }
 
@@ -119,7 +135,7 @@ pub struct Config {
     pub position: PositionSizing,
     /// Maximum entries open at once.
     pub max_open_positions: usize,
-    /// Hard cap on trades per day, independent of PnL.
+    /// Hard cap on trades per day, independent of `PnL`.
     pub max_trades_per_day: u32,
     /// Highest acceptable risk score (1..=10) before a token is skipped.
     pub max_risk_score: u8,
@@ -205,11 +221,10 @@ impl Config {
                     return Err(ConfigError::UnverifiedVenueOnLive { venue: *venue });
                 }
             }
-            const LIVE_CAP: u64 = PositionSizing::ONE_SOL / 50; // 0.02 SOL
             if !self.position.is_live_safe() {
                 return Err(ConfigError::PositionTooLarge {
                     lamports: self.position.lamports(),
-                    max_lamports: LIVE_CAP,
+                    max_lamports: LIVE_POSITION_CAP_LAMPORTS,
                 });
             }
         }
@@ -248,7 +263,7 @@ mod tests {
         // decision, not an accidental edit to a division.
         assert_eq!(PositionSizing::ONE_SOL / 50, 20_000_000);
         assert!(PositionSizing::from_sol(0.02).is_live_safe());
-        assert!(!PositionSizing::from_sol(0.0200001).is_live_safe());
+        assert!(!PositionSizing::from_sol(0.020_000_1).is_live_safe());
     }
 
     #[test]

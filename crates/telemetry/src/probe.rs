@@ -33,6 +33,14 @@ pub struct Probe<'a> {
 
 impl<'a> Probe<'a> {
     /// Begins timing `stage`.
+    ///
+    /// `inline(always)` is deliberate and load-bearing here, not an oversight:
+    /// with the feature off the body is empty, and only a forced inline
+    /// guarantees the call and its argument evaluation disappear entirely
+    /// instead of leaving a function call in the hot path. Clippy's general
+    /// advice does not apply to a function whose entire purpose is to not
+    /// exist.
+    #[allow(clippy::inline_always)]
     #[inline(always)]
     #[must_use]
     pub fn start(metrics: &'a Metrics, stage: Stage) -> Self {
@@ -54,6 +62,7 @@ impl<'a> Probe<'a> {
     }
 
     /// Ends timing and records the observation.
+    #[allow(clippy::inline_always)]
     #[inline(always)]
     pub fn finish(self) {
         #[cfg(feature = "debug-trace")]
@@ -67,6 +76,7 @@ impl<'a> Probe<'a> {
     }
 
     /// Marks the operation as failed without changing the timing.
+    #[allow(clippy::inline_always)]
     #[inline(always)]
     pub fn fail(self) {
         #[cfg(feature = "debug-trace")]

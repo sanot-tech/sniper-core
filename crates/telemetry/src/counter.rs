@@ -18,12 +18,12 @@ impl Counter {
         Self(AtomicU64::new(0))
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn inc(&self) {
         self.0.fetch_add(1, Ordering::Relaxed);
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn add(&self, n: u64) {
         self.0.fetch_add(n, Ordering::Relaxed);
     }
@@ -51,12 +51,12 @@ impl Gauge {
         Self(AtomicI64::new(0))
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn set(&self, v: i64) {
         self.0.store(v, Ordering::Relaxed);
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn add(&self, d: i64) {
         self.0.fetch_add(d, Ordering::Relaxed);
     }

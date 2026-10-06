@@ -1,4 +1,4 @@
-//! рџЋЇ Venue abstraction вЂ” one trait, three implementations.
+//! 🎯 Venue abstraction — one trait, three implementations.
 //!
 //! ## Why a trait at all
 //!
@@ -11,8 +11,8 @@
 //! * and fee schedule.
 //!
 //! Because those five things differ, a sniper needs a *separate buy builder
-//! per venue* while everything else вЂ” risk filters, position tracking,
-//! execution fan-out, telemetry вЂ” is shared. The trait captures exactly that
+//! per venue* while everything else — risk filters, position tracking,
+//! execution fan-out, telemetry — is shared. The trait captures exactly that
 //! seam, so adding a fourth venue is a new file, not a rewrite.
 //!
 //! ## The three venues we snipe
@@ -21,7 +21,7 @@
 //! |---|---|---|---|
 //! | [`VenueKind::PumpFun`] | `6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P` | `create` / `create_v2` | Bonding curve, no pool yet |
 //! | [`VenueKind::PumpSwap`] | pAMM | `CreatePoolEvent` | Constant product, graduates from pump.fun |
-//! | [`VenueKind::RaydiumLaunchLab`] | LaunchLab | `initialize` / `initialize2` | Raydium's own curve |
+//! | [`VenueKind::RaydiumLaunchLab`] | `LaunchLab` | `initialize` / `initialize2` | Raydium's own curve |
 //!
 //! Program ids other than pump.fun's are declared here but must be verified
 //! against the pinned IDL before mainnet use — see [`VenueKind::program_id`].
@@ -107,9 +107,9 @@ pub enum RiskFlag {
 pub enum VenueKind {
     /// pump.fun bonding curve.
     PumpFun,
-    /// PumpSwap вЂ” pump.fun's own AMM, where curve tokens graduate.
+    /// `PumpSwap` — pump.fun's own AMM, where curve tokens graduate.
     PumpSwap,
-    /// Raydium LaunchLab, Raydium's own bonding curve.
+    /// `Raydium LaunchLab`, Raydium's own bonding curve.
     RaydiumLaunchLab,
 }
 
@@ -125,17 +125,17 @@ impl VenueKind {
     ///
     /// Only the pump.fun id is verified against the published documentation.
     /// The other two are placeholders and **must** be confirmed against the
-    /// pinned IDL before any mainnet run вЂ” a wrong program id means silently
+    /// pinned IDL before any mainnet run — a wrong program id means silently
     /// subscribing to nothing, which looks exactly like "no tokens launch".
     #[must_use]
     pub const fn program_id(&self) -> &'static str {
         match self {
-            // вњ… verified in pump-fun/pump-public-docs
+            // ✅ verified in pump-fun/pump-public-docs
             Self::PumpFun => "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
-            // вљ пёЏ verify against pinned IDL
-            Self::PumpSwap => "PENDING_IDL_VERIFICATION",
-            // вљ пёЏ verify against pinned IDL
-            Self::RaydiumLaunchLab => "PENDING_IDL_VERIFICATION",
+            // ⚠️ verify against the pinned IDL before trading this venue
+            Self::PumpSwap => "PENDING_IDL_VERIFICATION:pumpswap",
+            // ⚠️ verify against the pinned IDL before trading this venue
+            Self::RaydiumLaunchLab => "PENDING_IDL_VERIFICATION:raydium-launchlab",
         }
     }
 
@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn all_venues_have_unique_names() {
-        let names: Vec<_> = VenueKind::ALL.iter().map(|v| v.as_str()).collect();
+        let names: Vec<_> = VenueKind::ALL.iter().map(VenueKind::as_str).collect();
         let mut sorted = names.clone();
         sorted.sort_unstable();
         sorted.dedup();

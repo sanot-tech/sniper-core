@@ -19,6 +19,7 @@ members = [
     "crates/core",
     "crates/cli",
     "crates/xtask",
+    "crates/sandbox",
 ]
 
 # -----------------------------------------------------------------------------

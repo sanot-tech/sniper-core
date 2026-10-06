@@ -132,8 +132,7 @@ fn check_no_seeds_in_index(root: &Path) -> Check {
         .filter(|f| !f.is_empty())
         .filter(|f| {
             std::fs::read_to_string(root.join(f))
-                .map(|body| body.lines().any(is_base58_secret))
-                .unwrap_or(false)
+                .is_ok_and(|body| body.lines().any(is_base58_secret))
         })
         .take(5)
         .collect();
@@ -186,7 +185,7 @@ fn check_secret_env(root: &Path) -> Check {
     let present: Vec<_> = required
         .iter()
         .copied()
-        .filter(|k| std::env::var(k).map(|v| !v.is_empty()).unwrap_or(false))
+        .filter(|k| std::env::var(k).is_ok_and(|v| !v.is_empty()))
         .collect();
     let tracked = probe_in(root, &["ls-files", "--error-unmatch", ".env"]).is_some();
     if tracked {
@@ -195,7 +194,7 @@ fn check_secret_env(root: &Path) -> Check {
         );
     }
     match present.len() {
-        n if n == required.len() => Check::Pass(format!("{} secrets present in environment", n)),
+        n if n == required.len() => Check::Pass(format!("{n} secrets present in environment")),
         n => Check::Warn(format!(
             "only {n}/{} secrets set ({:?} missing)",
             required.len(),
@@ -248,7 +247,89 @@ fn repo_root() -> PathBuf {
         .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
 }
 
+/// 📥 `dump-pump` — fetch the pump.fun program bytecode for the sandbox.
+///
+/// pump.fun has no devnet deployment, so chapter 1 tests against the real
+/// mainnet binary instead. This makes that dump a one-command operation
+/// instead of a tribal-knowledge incantation.
+fn cmd_dump_pump() -> i32 {
+    const PROGRAM: &str = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
+    let root = repo_root();
+    let out_dir = root.join("fixtures").join("programs");
+    let out = out_dir.join("pump.so");
+
+    println!("📥 dumping pump.fun program");
+    println!("   program: {PROGRAM}");
+    println!("   output:  {}", out.display());
+
+    if out.exists() {
+        let size = std::fs::metadata(&out).map_or(0, |m| m.len());
+        if size > 5_000_000 {
+            println!("✅ already present ({size} bytes) — nothing to do");
+            return 0;
+        }
+        println!("⚠️  existing file is only {size} bytes, refetching");
+    }
+
+    // The RPC URL comes from the environment, never from a file in the repo.
+    let Some(url) = std::env::var("HELIUS_API_KEY")
+        .ok()
+        .map(|k| format!("https://mainnet.helius-rpc.com/?api-key={k}"))
+        .or_else(|| std::env::var("SOLANA_RPC_MAINNET").ok())
+    else {
+        eprintln!("🛑 set HELIUS_API_KEY or SOLANA_RPC_MAINNET first");
+        eprintln!("   (both are read from the environment; neither is stored in git)");
+        return 2;
+    };
+
+    if std::fs::create_dir_all(&out_dir).is_err() {
+        eprintln!("🛑 cannot create {}", out_dir.display());
+        return 2;
+    }
+
+    // `solana program dump ADDRESS OUTPUT` — both positional in Agave 4.x.
+    let status = Command::new("solana")
+        .args(["program", "dump", PROGRAM])
+        .arg(&out)
+        .args(["-u", &url])
+        .status();
+
+    match status {
+        Ok(s) if s.success() => {
+            let size = std::fs::metadata(&out).map_or(0, |m| m.len());
+            if size > 5_000_000 {
+                println!("✅ dumped {size} bytes");
+                0
+            } else {
+                eprintln!("🛑 dump looks wrong: only {size} bytes");
+                2
+            }
+        }
+        Ok(s) => {
+            eprintln!("🛑 solana program dump failed with {s}");
+            2
+        }
+        Err(e) => {
+            eprintln!("🛑 cannot run solana CLI: {e}");
+            2
+        }
+    }
+}
+
 fn main() {
+    // Subcommand dispatch. Keeping this dependency-free means the preflight
+    // still builds when a heavy dependency is broken.
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.first().map(String::as_str) {
+        Some("dump-pump") => std::process::exit(cmd_dump_pump()),
+        Some("gatekeeper") | None => {}
+        Some(other) => {
+            eprintln!("unknown subcommand: {other}");
+            eprintln!("usage: xtask [gatekeeper | dump-pump]");
+            std::process::exit(2);
+        }
+    }
+
     let root = repo_root();
     println!("🛡️  Gatekeeper — environment preflight");
     println!("    repo: {}\n", root.display());

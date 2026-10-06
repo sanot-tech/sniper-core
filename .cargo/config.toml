@@ -21,6 +21,8 @@ c = "clippy --workspace --all-targets -- -D warnings"
 # --- chapter automation ------------------------------------------------------
 # Chapter 0's autotest system: environment preflight.
 gate = "run -p xtask -- gatekeeper"
+# Chapter 1's setup step: fetch the real pump.fun binary for the LiteSVM stand.
+dump-pump = "run -p xtask -- dump-pump"
 
 [build]
 # Keep incremental compilation off for release: a sniper binary is small and

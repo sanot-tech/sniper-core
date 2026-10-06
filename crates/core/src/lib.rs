@@ -13,7 +13,10 @@
 //! ```
 
 pub mod config;
+pub mod pricing;
 pub mod venue;
+
+pub use pricing::{CurveReserves, FeeBps, QuoteError};
 
 pub use config::{Config, ConfigError, PositionSizing, RuntimeMode};
 pub use venue::pumpfun::{PumpFunDecoder, RawInstruction, RawTransaction};

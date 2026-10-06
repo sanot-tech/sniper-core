@@ -26,6 +26,10 @@ gate = "run -p xtask --bin gatekeeper -- gatekeeper"
 dump-pump = "run -p xtask --bin gatekeeper -- dump-pump"
 # Chapter 2's ground truth: capture real mainnet transactions as test fixtures.
 fetch-fixtures = "run -p xtask --bin fetch-fixtures --"
+# Live detection on mainnet. Release by default: a debug build's latency numbers
+# are not merely worse, they are a different universe, and this tool's whole
+# purpose is measuring how fast a launch is seen.
+watch = "run -p sniper-cli --bin watch-launches --release --"
 
 [build]
 # Keep incremental compilation off for release: a sniper binary is small and

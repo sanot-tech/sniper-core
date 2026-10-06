@@ -14,11 +14,12 @@
 
 pub mod config;
 pub mod pricing;
+pub mod stream;
 pub mod venue;
 
-pub use pricing::{CurveReserves, FeeBps, QuoteError};
-
 pub use config::{Config, ConfigError, PositionSizing, RuntimeMode};
+pub use pricing::{CurveReserves, FeeBps, QuoteError};
+pub use stream::logs::{PumpActivity, PUMP_PROGRAM_ID};
 pub use venue::pumpfun::{PumpFunDecoder, RawInstruction, RawTransaction};
 pub use venue::{LaunchEvent, Venue, VenueKind};
 

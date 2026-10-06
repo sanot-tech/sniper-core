@@ -10,6 +10,15 @@ description = "Sniper bot executable: runtime flags and process supervision entr
 [dependencies]
 sniper-core = { path = "../core", version = "0.1.0" }
 sniper-telemetry = { path = "../telemetry", version = "0.1.0" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time"] }
+tokio-tungstenite = { version = "0.24", default-features = false, features = [
+    "connect",
+    "rustls-tls-webpki-roots",
+] }
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde_json = "1"
+bs58 = "0.5"
 
 [lints]
 workspace = true

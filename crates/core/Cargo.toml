@@ -12,6 +12,15 @@ sniper-telemetry = { path = "../telemetry", version = "0.1.0" }
 # Official pump.fun SDK: the curve maths itself, so our own arithmetic only
 # has to be right where it is genuinely ours — fee handling, caps and rounding.
 pump-rust-client = { version = "0.2", default-features = false }
+# Live log subscription. A WebSocket is enough to identify a launch on a free
+# plan, so the paid gRPC feed is an optimisation rather than a prerequisite.
+tokio-tungstenite = { version = "0.24", default-features = false, features = [
+    "connect",
+    "rustls-tls-webpki-roots",
+] }
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [lints]
 workspace = true

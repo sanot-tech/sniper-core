@@ -13,12 +13,14 @@
 //! ```
 
 pub mod config;
+pub mod curve;
 pub mod pricing;
 pub mod risk;
 pub mod stream;
 pub mod venue;
 
 pub use config::{Config, ConfigError, PositionSizing, RuntimeMode};
+pub use curve::CurveState;
 pub use pricing::{CurveReserves, FeeBps, QuoteError};
 pub use risk::{MintFacts, RiskFilter, Verdict};
 pub use stream::logs::{PumpActivity, PUMP_PROGRAM_ID};

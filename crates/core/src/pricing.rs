@@ -251,6 +251,12 @@ pub enum QuoteError {
     ExhaustsCurve,
     /// The SDK refused: overflow or a fee derivation it could not complete.
     SdkFailure,
+    /// The curve has graduated and no longer trades on the bonding curve.
+    ///
+    /// Separate from [`Self::ExhaustsCurve`] because the remedy differs: this
+    /// venue is simply closed for this token, and the order belongs on the AMM
+    /// instead.
+    CurveComplete,
 }
 
 impl From<pump_rust_client::math::QuoteError> for QuoteError {
@@ -268,6 +274,7 @@ impl fmt::Display for QuoteError {
             Self::EmptyReserves => "a reserve is zero, so the price is undefined",
             Self::ZeroAmount => "amount must be greater than zero",
             Self::ExhaustsCurve => "input exceeds the virtual reserve; the curve would be consumed",
+            Self::CurveComplete => "the curve has graduated; this venue no longer trades it",
             Self::SdkFailure => "quote math rejected these inputs",
         };
         f.write_str(msg)

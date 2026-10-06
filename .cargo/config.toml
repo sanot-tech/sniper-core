@@ -33,6 +33,10 @@ watch = "run -p sniper-cli --bin watch-launches --release --"
 # Chapter 6's evidence: sample live launches and report what their mint accounts
 # actually contain, so filter thresholds come from data rather than intuition.
 risk-probe = "run -p sniper-cli --bin risk-probe --release --"
+# Read the bonding curve the instant a launch is seen: how far along it is,
+# what 0.02 SOL costs in it, and whether the supply figure on chain agrees with
+# what the rest of the project assumed.
+curve-probe = "run -p sniper-cli --bin curve-probe --release --"
 
 [build]
 # Keep incremental compilation off for release: a sniper binary is small and

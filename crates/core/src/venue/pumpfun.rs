@@ -181,9 +181,17 @@ mod account_slot {
     pub const MINT: usize = 0;
     /// The bonding curve the launch belongs to.
     ///
-    /// Present in the observed `create_v2` layout, but the buy path reaches the
-    /// same account, so it is resolved at trade time rather than trusted here.
-    pub const BONDING_CURVE: usize = 1;
+    /// Position 2, established by measurement rather than by reading a log: a
+    /// first version used position 1, and `cargo curve-probe` failed to decode
+    /// a bonding curve from all 149 consecutive live launches it was pointed at.
+    /// Sweeping every account of the instruction and keeping the first that
+    /// deserialises as a `BondingCurve` found position 2 in 36 of 51 launches
+    /// and position 3 in 13 — the rest being dev-buy bundles where the create
+    /// and the buy describe the same curve at different indices.
+    ///
+    /// The buy path reaches the same account, so the value is resolved at trade
+    /// time rather than trusted from a launch event.
+    pub const BONDING_CURVE: usize = 2;
     /// The deployer, which is a signer.
     pub const CREATOR: usize = 5;
     /// Minimum accounts a launch instruction is observed to carry.
@@ -326,7 +334,8 @@ mod tests {
         let mint = [7u8; 32];
         let curve = [8u8; 32];
         let creator = [9u8; 32];
-        let accounts = [mint, curve, [3u8; 32], [4u8; 32], [5u8; 32], creator];
+        // Curve at index 2, as `cargo curve-probe` measured on live launches.
+        let accounts = [mint, [2u8; 32], curve, [4u8; 32], [5u8; 32], creator];
 
         let data = CREATE_V2_DISCRIMINATOR.to_vec();
         let ix = RawInstruction {

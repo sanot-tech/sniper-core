@@ -16,6 +16,7 @@ pub mod config;
 pub mod venue;
 
 pub use config::{Config, ConfigError, PositionSizing, RuntimeMode};
+pub use venue::pumpfun::{PumpFunDecoder, RawInstruction, RawTransaction};
 pub use venue::{LaunchEvent, Venue, VenueKind};
 
 pub use sniper_telemetry::{Metrics, Stage};

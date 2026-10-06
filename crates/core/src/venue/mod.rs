@@ -162,6 +162,14 @@ impl VenueKind {
     }
 }
 
+/// pump.fun-specific decoding.
+///
+/// Separated from the trait definition because the trait is about *what a venue
+/// is*, while this is about *how pump.fun encodes one*. Keeping them apart
+/// means a third venue cannot start touching pump.fun's discriminators by
+/// accident, and the discriminator table has exactly one place to live.
+pub mod pumpfun;
+
 #[cfg(test)]
 mod tests {
     use super::*;

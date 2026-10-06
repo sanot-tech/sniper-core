@@ -325,7 +325,8 @@ fn main() {
         Some("gatekeeper") | None => {}
         Some(other) => {
             eprintln!("unknown subcommand: {other}");
-            eprintln!("usage: xtask [gatekeeper | dump-pump]");
+            eprintln!("usage: gatekeeper [gatekeeper | dump-pump]");
+            eprintln!("       cargo fetch-fixtures   # separate binary, needs network");
             std::process::exit(2);
         }
     }

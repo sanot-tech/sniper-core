@@ -41,5 +41,7 @@ hex = "0.4"
 # solana_keypair::Keypair::try_from expects (seed || public key).
 ed25519-dalek = "2"
 
+bs58 = "0.5"
+
 [lints]
 workspace = true

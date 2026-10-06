@@ -87,6 +87,22 @@ system is green, and the next chapter does not start until then.
 | 12 | Promotion gate | 🚦 `PromoGate` | stages in order |
 | 13 | Linux migration | 🔀 `PortParity` | 100% parity |
 
+---
+
+## 🔬 What mainnet actually looks like (captured, not assumed)
+
+Chapter 2 measured the chain instead of trusting documentation, and three
+findings changed the design:
+
+| Finding | Consequence |
+|---|---|
+| A widely copied guide lists `create` as `181ec82805181c77`; the real Anchor value is `181ec828051c0777` | With the typo the decoder **never fires**, and the bot looks healthy while buying nothing. Constants are now computed and asserted. |
+| **81% of pump.fun traffic is transaction version 1** | A v0-only decoder silently misses four launches in five. v1 is also never pre-parsed by the RPC. |
+| Launches are ~**1 in 1000** pump.fun transactions | 6 000 signatures cover only ~3 minutes of chain. Detection needs a deep window, not a hopeful subscribe. |
+
+Two of ten observed discriminators remain unidentified and are recorded as
+such. A guessed name would be a bug; an admitted gap is information.
+
 Full plan with rationale: `C:\Users\user\.opencode\plan\solana-sniper-master-plan.md`
 
 ---

@@ -19,10 +19,13 @@ b = "build --workspace --release"
 f = "fmt --all"
 c = "clippy --workspace --all-targets -- -D warnings"
 # --- chapter automation ------------------------------------------------------
-# Chapter 0's autotest system: environment preflight.
-gate = "run -p xtask -- gatekeeper"
+# Chapter 0's autotest system: environment preflight. Zero dependencies, so it
+# always builds even when the Solana tree is broken.
+gate = "run -p xtask --bin gatekeeper -- gatekeeper"
 # Chapter 1's setup step: fetch the real pump.fun binary for the LiteSVM stand.
-dump-pump = "run -p xtask -- dump-pump"
+dump-pump = "run -p xtask --bin gatekeeper -- dump-pump"
+# Chapter 2's ground truth: capture real mainnet transactions as test fixtures.
+fetch-fixtures = "run -p xtask --bin fetch-fixtures --"
 
 [build]
 # Keep incremental compilation off for release: a sniper binary is small and

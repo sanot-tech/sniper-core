@@ -15,3 +15,7 @@ workspace = true
 
 [dev-dependencies]
 sniper-telemetry = { path = "../telemetry", version = "0.1.0" }
+# Only for DecodeMatrix: reading captured fixtures, not part of the hot path.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bs58 = "0.5"

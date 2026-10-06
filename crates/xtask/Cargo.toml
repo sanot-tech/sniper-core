@@ -5,9 +5,36 @@ edition = "2021"
 rust-version = "1.85"
 license = "MIT"
 publish = false
-description = "Project automation. Starts with Gatekeeper: the preflight that refuses to let the bot build on a broken environment."
-# Intentionally zero dependencies: the preflight must build faster than
-# anything it is meant to guard.
+description = "Project automation: an environment preflight that refuses to let the bot build on a broken machine, plus a fixture capturer."
+
+# ---------------------------------------------------------------------------
+# Two binaries, deliberately separated by dependency weight:
+#
+#   gatekeeper      ZERO dependencies. Must always compile, because its whole
+#                   job is to tell you the environment is broken. If it
+#                   needed the Solana tree to build, it could not diagnose a
+#                   broken Solana tree.
+#
+#   fetch-fixtures  talks HTTP to a node. Only this one needs the network
+#                   stack and a runtime.
+# ---------------------------------------------------------------------------
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bs58 = "0.5"
+reqwest = { version = "0.12", default-features = false, features = [
+    "rustls-tls",
+    "json",
+] }
+tokio = { version = "1", features = ["rt", "net", "time"] }
+futures = "0.3"
+
+[dev-dependencies]
+# Only for proving the discriminator table against sha256. The whole chapter
+# rests on those eight bytes being right, so the check belongs next to the
+# constants rather than in a comment.
+sha2 = "0.10"
 
 [lints]
 workspace = true

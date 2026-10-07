@@ -37,6 +37,10 @@ risk-probe = "run -p sniper-cli --bin risk-probe --release --"
 # what 0.02 SOL costs in it, and whether the supply figure on chain agrees with
 # what the rest of the project assumed.
 curve-probe = "run -p sniper-cli --bin curve-probe --release --"
+# The only probe that produces a number rather than a description: what a 0.02
+# SOL entry at detection would actually have returned at each horizon, priced
+# with the SDK's own maths on real curve state.
+pnl-probe = "run -p sniper-cli --bin pnl-probe --release --"
 
 [build]
 # Keep incremental compilation off for release: a sniper binary is small and

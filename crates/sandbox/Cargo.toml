@@ -32,7 +32,7 @@ solana-clock = "3"
 solana-compute-budget-interface = "3"
 # VersionedTransaction is the wire type that carries serde, which is exactly
 # what chapter 4's goldens need in order to compare real bytes.
-solana-transaction = { version = "4", features = ["serde"] }
+solana-transaction = { version = "5", features = ["serde"] }
 # Wire serialisation.
 bincode = "1.3"
 # solana-sbpf exposes the loader constants the synthesised stub has to agree with.

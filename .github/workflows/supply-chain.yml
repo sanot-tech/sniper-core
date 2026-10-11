@@ -64,7 +64,7 @@ jobs:
       # vulnerabilities, licences and the source of every dependency in one
       # pass, instead of three that each need their own configuration and each
       # fail differently.
-      - uses:EmbarkStudios/cargo-deny-action@v2
+      - uses: EmbarkStudios/cargo-deny-action@v2
 
       # This fails on a real advisory. That is the point of the job, and it is
       # the only check here that is allowed to block, because a known-exploitable

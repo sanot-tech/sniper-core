@@ -34,7 +34,7 @@ futures = "0.3"
 # Only for proving the discriminator table against sha256. The whole chapter
 # rests on those eight bytes being right, so the check belongs next to the
 # constants rather than in a comment.
-sha2 = "0.10"
+sha2 = "0.11"
 
 [lints]
 workspace = true

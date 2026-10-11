@@ -33,7 +33,7 @@
 //! applying to test targets, the test below dies in a way that is impossible
 //! to mistake for an ordinary assertion failure.
 
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 
 /// Unwinding must reach the test harness.
 ///

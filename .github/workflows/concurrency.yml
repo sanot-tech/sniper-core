@@ -1,0 +1,82 @@
+# =============================================================================
+# 🧵 Concurrency — loom, and the tests that need a nightly toolchain
+# =============================================================================
+#
+# WHY THIS IS SEPARATE FROM ci.yml
+#
+# Because `--cfg loom` replaces every atomic in sniper-telemetry with an
+# instrumented one. Setting it workspace-wide would rebuild the entire Solana
+# tree against loom's types, which is both slow and, in the case of crates that
+# are not loom-aware, simply wrong. Loom is scoped to one crate and one feature.
+#
+# Two things make this job easy to get silently wrong, which is why it is worth
+# its own file rather than a step inside ci.yml:
+#
+#   1. Forgetting `--cfg loom`. The tests then compile to a single placeholder
+#      that passes, and the job goes green while proving nothing. tools/
+#      loom-check.sh exists for exactly this reason; this workflow calls it
+#      rather than re-implementing the invocation.
+#
+#   2. Forgetting `--release`. Under a debug build each atomic access carries
+#      bookkeeping and the state space grows past what loom can enumerate. The
+#      suite takes about a second in release and does not finish in debug.
+#
+# On schedule rather than on every push: this is the most expensive job per unit
+# of work in the repository, and a nightly schedule means a regression in the
+# concurrency model shows up within a day rather than waiting for the next
+# unrelated change to touch those files.
+# =============================================================================
+
+name: Concurrency
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Only when the code it actually checks moves. A commit that touches a
+      # README has nothing to say about atomic memory ordering.
+      - "crates/telemetry/**"
+      - "tools/loom-check.sh"
+      - ".github/workflows/concurrency.yml"
+  pull_request:
+    paths:
+      - "crates/telemetry/**"
+      - "tools/loom-check.sh"
+  schedule:
+    # Off the hour and off the hour+30, because that is when every other cron
+    # in the world fires and runners are least available.
+    - cron: "23 5 * * *"
+
+concurrency:
+  group: concurrency-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  loom:
+    name: loom (every interleaving)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # A separate cache key: the loom build sets RUSTFLAGS, and sharing a
+          # key with the default build would thrash between two incompatible
+          # configurations on every run.
+          shared-key: loom
+
+      # The script sets RUSTFLAGS="--cfg loom" and the release flag itself, so
+      # that no one can forget either by hand-writing a cargo invocation here.
+      - name: Verify every interleaving
+        run: ./tools/loom-check.sh
+        env:
+          # No secrets here and no network. Loom is entirely offline by design:
+          # it needs no node, no RPC and no fixtures, which is a large part of
+          # why it is the right tool for a crate whose job is to be safe under
+          # concurrency it cannot observe.
+          RUST_BACKTRACE: "1"

@@ -72,7 +72,29 @@ impl Histogram {
             idx += 1;
         }
         self.counts[idx].fetch_add(1, Ordering::Relaxed);
-        self.sum_ns.fetch_add(nanos, Ordering::Relaxed);
+        // Saturating, not a plain `fetch_add`.
+        //
+        // A wrapping sum is worse than a wrong sum here, because every
+        // downstream reader trusts it. Two observations of `u64::MAX` leave a
+        // wrapped `sum_ns` of `u64::MAX - 1` -- *smaller than either single
+        // observation* -- and `mean_ns` then reports half of u64::MAX for a
+        // histogram holding two samples. No operator can act on that number
+        // and no alert can threshold it.
+        //
+        // `fetch_update` costs one uncontended `lock cmpxchg` where
+        // `fetch_add` costs one `lock xadd`, so the always-on layer is
+        // unchanged in practice. It is only contended when several threads
+        // record the *same* stage at once, which the pipeline deliberately
+        // avoids by keeping the trading stages on one task.
+        //
+        // Relaxed on both sides is correct: the histogram is telemetry, and
+        // telemetry needs to be eventually accurate, not ordered against
+        // other memory. The existing `max_ns` comment applies here too.
+        let _ = self
+            .sum_ns
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |total| {
+                Some(total.saturating_add(nanos))
+            });
         // Monotonic max without a CAS loop: a lost race here costs one
         // slightly smaller reading, never a panic or a stall.
         self.max_ns.fetch_max(nanos, Ordering::Relaxed);

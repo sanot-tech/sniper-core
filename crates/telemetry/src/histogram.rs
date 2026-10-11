@@ -81,15 +81,46 @@ impl Histogram {
         // histogram holding two samples. No operator can act on that number
         // and no alert can threshold it.
         //
-        // `fetch_update` costs one uncontended `lock cmpxchg` where
-        // `fetch_add` costs one `lock xadd`, so the always-on layer is
-        // unchanged in practice. It is only contended when several threads
-        // record the *same* stage at once, which the pipeline deliberately
-        // avoids by keeping the trading stages on one task.
+        // The cost was measured rather than assumed, because the first draft of
+        // this comment asserted that `fetch_update` was "one instruction
+        // either way" and the benchmark said otherwise. On an x86-64 test
+        // box, uncontended, recording a typical 850 ns stage:
         //
-        // Relaxed on both sides is correct: the histogram is telemetry, and
-        // telemetry needs to be eventually accurate, not ordered against
-        // other memory. The existing `max_ns` comment applies here too.
+        //     fetch_add  (wrapping)        9.2 ns
+        //     fetch_update (saturating)   12.3 ns
+        //     relaxed load (control)       0.8 ns
+        //
+        // So it is about +3.1 ns per observation, roughly +34% on the
+        // primitive, and the original claim was simply wrong. `fetch_add` is a
+        // single locked read-modify-write; `fetch_update` is a CAS loop and
+        // pays a real comparison on the uncontended path too.
+        //
+        // Why it still ships: observations arrive roughly once per stage
+        // completion, and a stage costs hundreds of microseconds end to end.
+        // Three nanoseconds against that is far below anything a latency
+        // budget can see. The trade buys a `mean_ns` that cannot report a
+        // number smaller than the samples inside it.
+        //
+        // The benchmark that produced the numbers above is
+        // `benches/histogram_cost.rs`, group `sum_ns_primitive`. Re-run it
+        // before changing anything here; the trade is only defensible while
+        // the gap stays small relative to a stage.
+        //
+        // `fetch_update` rather than the newer `try_update`: `fetch_update`
+        // is deprecated in favour of `try_update` for naming consistency
+        // with `compare_*` / `load_*` / `store_*` -- but `try_update` only
+        // became stable in Rust 1.95, and this crate declares
+        // `rust-version = "1.85"`. Taking a scoped deprecation warning keeps
+        // the declared MSRV honest; raising the MSRV of a measurement crate
+        // for a rename would be a far worse trade, and would force every
+        // downstream crate to move too.
+        //
+        // The allow is scoped to this single call rather than applied
+        // crate-wide, so the next genuine deprecation still gets noticed.
+        #[allow(
+            deprecated,
+            reason = "try_update needs Rust 1.95; this crate declares MSRV 1.85"
+        )]
         let _ = self
             .sum_ns
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |total| {

@@ -329,6 +329,17 @@ proptest! {
 /// arithmetic is the proof, not the test: two samples of `u64::MAX` cannot be
 /// summed in a `u64`, and a wrapping sum turns `mean_ns` into a number smaller
 /// than any single observation in the histogram.
+// Clippy is right that `>= u64::MAX` is always true for a `u64`, and the
+// comparison is still the point. The test asks "did the sum stay at least
+// as large as the largest single sample?", and `== u64::MAX` would answer a
+// narrower question -- one that a different wrong implementation could
+// also satisfy. The lint's suggestion is silently weaker than the
+// assertion, which is exactly the kind of "fix" that turns a real test
+// into a decorative one.
+#[allow(
+    clippy::absurd_extreme_comparisons,
+    reason = "the assertion is deliberately a bound, not an equality"
+)]
 #[test]
 fn sum_never_wraps() {
     let h = Histogram::new();

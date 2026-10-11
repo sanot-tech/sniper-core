@@ -52,4 +52,18 @@ color = "always"
 
 [net]
 # Fail fast instead of hanging a build behind a dead mirror.
-retry = 2
+retry = 5
+
+[http]
+# Slow links are not dead links. The default 30s timeout gives up on a
+# perfectly healthy crates.io mirror that happens to be mid-transfer, and the
+# symptom is a confusing "transfer too slow: transferred 0 bytes" on a
+# dependency that is only a few hundred kilobytes. Raising the timeout turns
+# those into ordinary slow builds instead of random failures.
+timeout = 120
+# Multiplexing shares one connection across concurrent downloads, which is a
+# large win when fetching the ~200 crates the Solana tree pulls in. It is
+# disabled here because a single reset on a multiplexed connection fails every
+# request sharing it, which looks worse on a flaky link than it saves on a fast
+# one.
+multiplexing = false

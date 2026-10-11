@@ -27,12 +27,26 @@ debug-trace = []
 # measurement layer must not drag serde/regex/logging machinery into the build.
 
 [dev-dependencies]
+criterion = "0.8"
+# loom systematically explores thread interleavings. It is the difference
+# between "8 threads did not lose a count once" and "no interleaving loses a
+# count". Test-only, like everything else in this section.
+loom = "0.7"
 # Test-only, so the zero-dependency guarantee above still holds for anyone
 # depending on this crate. Nothing here reaches the release artifact.
 #
 # proptest earns its place by being the only way to state "this holds for
 # every input" instead of "this held for the six inputs I thought of".
 proptest = "1"
+
+# criterion brings its own `main` via `criterion_main!`. Without `harness =
+# false`, rustc wraps the bench target in libtest, that harness never calls
+# our main, and `cargo bench` cheerfully reports "0 benchmarks" while exiting
+# successfully. It fails silently, which is the worst way for a benchmark to
+# fail -- a latency guard that silently measures nothing guards nothing.
+[[bench]]
+name = "histogram_cost"
+harness = false
 
 [lints.rust]
 unsafe_code = "forbid"

@@ -1,0 +1,70 @@
+# =============================================================================
+# CODEOWNERS — who reviews what, and which files cannot be changed casually
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# The hot path. A change here decides what the bot pays.
+# -----------------------------------------------------------------------------
+# `curve.rs` and `pricing.rs` decide the price. `risk.rs` decides whether a
+# trade happens at all. `pumpfun.rs` decides whether a launch is real. Between
+# them they are the code that moves money, and each is the kind of file where a
+# plausible-looking change is silently catastrophic: an inverted comparison in
+# the constant-product maths still returns a number, and the number is simply
+# wrong.
+#
+# These paths are deliberately not automated away. `cargo clippy` catches
+# style; it cannot catch an inverted comparison that still type-checks.
+/crates/core/src/pricing.rs   @sanot-tech
+/crates/core/src/curve.rs     @sanot-tech
+/crates/core/src/risk.rs      @sanot-tech
+/crates/core/src/venue/       @sanot-tech
+/crates/core/src/stream/      @sanot-tech
+
+# -----------------------------------------------------------------------------
+# The configuration surface. A change here changes what the bot is allowed to
+# do, so it deserves the same scrutiny as the maths it feeds.
+# -----------------------------------------------------------------------------
+/crates/core/src/config.rs    @sanot-tech
+
+# -----------------------------------------------------------------------------
+# The promotion gate itself.
+#
+# `crates/sandbox` is listed not because it is delicate -- it is a test crate
+# with no production path -- but because it is the only place where instructions
+# are actually executed. A change that makes the sandbox accept a malformed
+# program, or makes its output depend on iteration order, would not fail any
+# test that does not run the VM. It would make the golden snapshots in chapter 4
+# meaningless, quietly.
+# -----------------------------------------------------------------------------
+/crates/sandbox/              @sanot-tech
+
+# -----------------------------------------------------------------------------
+# Test files that assert a *claim* rather than an implementation detail.
+#
+# Named individually so that weakening one is a visible act. These files are the
+# record of what has been proved; deleting an assertion to make a build green
+# should require explaining what was being asserted.
+# -----------------------------------------------------------------------------
+/crates/core/tests/math_invariants.rs    @sanot-tech
+/crates/core/tests/decode_matrix.rs      @sanot-tech
+/crates/core/tests/risk_sandbox.rs       @sanot-tech
+/crates/telemetry/tests/                  @sanot-tech
+
+# -----------------------------------------------------------------------------
+# The gates.
+#
+# A workflow that fails to parse looks exactly like one that failed, and the
+# difference is only visible in the API. Two of these were wrong in ways that
+# showed up as a red X rather than as an error message; `uses:` without a
+# space after the colon was one of them. Changes here are reviewed by the same
+# person precisely because a silent gate is worse than a loud one.
+# -----------------------------------------------------------------------------
+/.github/                    @sanot-tech
+/deny.toml                   @sanot-tech
+/tools/                      @sanot-tech
+/.cargo/config.toml          @sanot-tech
+
+# -----------------------------------------------------------------------------
+# Default: everything else.
+# -----------------------------------------------------------------------------
+*   @sanot-tech

@@ -16,7 +16,7 @@ litesvm = "0.17"
 
 # Interfaces only, so the sandbox stays small and version-compatible with
 # whatever litesvm itself pins.
-solana-keypair = "3"
+solana-keypair = "4"
 solana-signer = "3"
 solana-instruction = "3"
 solana-message = "4"
@@ -54,7 +54,7 @@ bs58 = "0.5"
 # visible to a consumer of the crate, and the types are already there.
 [dev-dependencies]
 solana-instruction = "3"
-solana-keypair = "3"
+solana-keypair = "4"
 solana-address = "2"
 solana-native-token = "3"
 solana-system-interface = "3"

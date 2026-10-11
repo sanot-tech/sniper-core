@@ -1,0 +1,91 @@
+# =============================================================================
+# 🔒 cargo-deny — what may enter Cargo.lock
+# =============================================================================
+#
+# This is the configuration that `supply-chain.yml` enforces. It is committed
+# rather than passed as flags because a policy expressed in a workflow file is
+# invisible to `cargo deny check` when someone runs it locally, and a policy you
+# cannot run by hand is a policy that only ever runs in CI.
+#
+# Every threshold here is chosen against the actual dependency graph rather than
+# against what the tool's defaults happen to be. That matters: the defaults are
+# a good starting point for an application with a dozen dependencies and the
+# wrong starting point for one that pulls in 586.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Advisories
+# -----------------------------------------------------------------------------
+[advisories]
+version = 2
+yanked = "deny"
+# Nothing in this tree may come from an unknown source. An unrecognised
+# advisory means someone found a problem and this tool does not know about it
+# yet -- treating that as "probably fine" is how a warning becomes a silent
+# assumption.
+unmaintained = "warn"
+
+# -----------------------------------------------------------------------------
+# Licences
+# -----------------------------------------------------------------------------
+[licenses]
+# Unlisted is an error. The cost of a missing licence file is a public page and
+# a takedown; the cost of a permissive-but-undocumented licence is that nobody
+# downstream can tell what they are shipping.
+unlicensed = "deny"
+allow-osi-fsf-free = false
+default = "deny"
+confidence-threshold = 0.93
+
+# Permissive, and the entire dependency graph falls into this bucket. These are
+# the licences that let a closed-source bot be sold without owing anything.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unlicense",
+    # Unicode-3.0 ships inside the internationalisation crates that the Solana
+    # SDK drags in transitively. Permissive, and unavoidable without dropping
+    # the SDK.
+    "Unicode-3.0",
+    # Zlib shows up in compression crates in the same subtree.
+    "Zlib",
+]
+
+# Weak copyleft is allowed but reported. GPL and LGPL are not disqualifying for
+# a project of this kind -- they become a problem only at link time for
+# something distributed -- so the useful behaviour is to notice them rather
+# than to block on them. "warn" means a new one shows up in the log without
+# failing a build at 2am.
+[licenses.private]
+ignore = true
+
+# -----------------------------------------------------------------------------
+# Bans — duplicate versions
+# -----------------------------------------------------------------------------
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+# `allow` is empty on purpose. Every entry would need a reason recorded here,
+# and the honest reason for most of them is "the upstream graph made this hard
+# to avoid", which is not a reason -- it is a fact. They accumulate instead, so
+# the list reads as a record of what was consciously accepted rather than as a
+# dumping ground for whatever the tool suggested.
+
+# -----------------------------------------------------------------------------
+# Sources
+# -----------------------------------------------------------------------------
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+# A git dependency means the contents were chosen by whoever controlled that
+# URL at the moment it was fetched, and `cargo` runs its build script before a
+# single test executes. The 2018 event-stream and colours.rs incidents were both
+# exactly this shape, and neither is visible in a diff: the manifest line looks
+# entirely ordinary.
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

@@ -67,10 +67,31 @@ impl CurveState {
     ///
     /// Parts per thousand rather than a float because this is a comparison
     /// against a threshold, and an integer comparison cannot be off by one part
-    /// in a million. Returns 0 when supply is unknown, which reads as "nothing
-    /// sold" — the optimistic direction. That is a deliberate asymmetry: a
-    /// missing supply should not block a trade, and `supply == 0` also means
-    /// there is no cap to enforce.
+    /// in a million.
+    ///
+    /// ## The return value is NOT bounded at 1000
+    ///
+    /// 1000 means "the entire supply has been sold". Values above that mean
+    /// `real_token` exceeds `supply`, which is nonsense data -- but nonsense that
+    /// is worth surfacing rather than flattening. Clamping at 1000 would make a
+    /// curve that is wildly over-full indistinguishable from one that is
+    /// precisely sold out, and both of those read as "100% sold" to every
+    /// threshold in the project.
+    ///
+    /// So this is a permille that may exceed its own scale. **Treat it as an
+    /// unbounded ratio, not a bounded fraction.** In particular: do not clamp
+    /// it, do not average it, and do not plot it on a 0..1000 axis expecting
+    /// the plot to fit. `u32::MAX` is the ceiling, roughly 4.29 million
+    /// permille, reached only when the supply is tiny relative to what has been
+    /// sold.
+    ///
+    /// The monotonicity and bounds of this figure are pinned by
+    /// `tests/curve_geometry.rs`, including the case this note exists for.
+    ///
+    /// Returns 0 when supply is unknown, which reads as "nothing sold" — the
+    /// optimistic direction. That is a deliberate asymmetry: a missing supply
+    /// should not block a trade, and `supply == 0` also means there is no cap
+    /// to enforce.
     #[must_use]
     pub const fn progress_permille(&self) -> u32 {
         if self.supply == 0 {

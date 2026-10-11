@@ -1,0 +1,135 @@
+# =============================================================================
+# 🩺 Miri — undefined behaviour the other gates cannot see
+# =============================================================================
+#
+# WHAT THIS IS FOR, PRECISELY
+#
+# loom verifies behaviour: it enumerates every interleaving the C11 memory model
+# permits and checks the answer. It does not verify that the code is *legal* --
+# that no read is out of bounds, no pointer is dangling, no `&mut` aliases a
+# `&`, no uninitialised memory is read. That is undefined behaviour, and UB is
+# not a wrong answer, it is the absence of guarantees: the program may do
+# something correct today and something different tomorrow, and no amount of
+# running it will tell you which day you are on.
+#
+# The interesting part for this crate is what it says about a promise the
+# repository already makes. `crates/telemetry` sets `unsafe_code = "forbid"`,
+# and that is currently enforced by a linter reading the source. Miri is a
+# checker: it compiles the crate and inspects what actually executes. "There is
+# no unsafe here" enforced by a lint and "there is no unsafe here" verified by
+# a checker are different claims, and only one of them survives a clever author.
+#
+# WHY NIGHTLY AND NOT IN ci.yml
+#
+# Miri needs a nightly toolchain and runs roughly two orders of magnitude slower
+# than a normal test. Putting it on every push would make the fast gate slow for
+# a tool whose findings are rare and whose scope is small. On a schedule it
+# runs against main, where a regression would have to wait days to be caught --
+# acceptable for a class of bug that in practice enters through a dependency
+# bump rather than through a commit.
+#
+# WHAT IS NOT COVERED, AND WHY IT MATTERS TO SAY SO
+#
+# Miri interprets Rust rather than compiling it, so it cannot run anything that
+# needs target-specific assembly. That rules out the whole Solana tree, which is
+# why this job is scoped to `sniper-telemetry` and `sniper-sandbox`. A UB report
+# in `sniper-core` would not be caught here, and nobody should read a green tick
+# here as a statement about the workspace.
+# =============================================================================
+
+name: Miri
+
+on:
+  schedule:
+    # 03:08 on Thursdays. A different weekday and minute from every other
+    # scheduled job, so a runner shortage never removes two of them at once.
+    - cron: "8 3 * * 4"
+  workflow_dispatch:
+
+concurrency:
+  group: miri
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  miri:
+    name: undefined behaviour
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # miri is a rustup component on the nightly channel, not a separate
+      # install. The component list here is deliberately just that one: every
+      # extra component is another thing that can fail to download on a runner
+      # with a slow link, and this job has one job.
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Separate key: a Miri build is a different target configuration, and
+          # sharing a key with the normal build would thrash on every run.
+          shared-key: miri
+
+      - name: Install Miri for this toolchain
+        run: cargo miri setup
+
+      # MIRIFLAGS, not RUSTFLAGS.
+      #
+      # The flags Miri honours have to be in MIRIFLAGS; putting them in
+      # RUSTFLAGS reaches the compiler instead and is silently ignored, which
+      # produces a run that looks strict and is not.
+      #
+      # -Zmiri-strict-provenance: integer-to-pointer casts must go through
+      #   `expose_provenance`. Off by default, and the default lets a bug that
+      #   only manifests under strict provenance pass.
+      #
+      # -Zmiri-tree-borrows: the stacked-borrows model, which is strictly more
+      #   precise than the default two-phase-borrows and finds aliasing bugs
+      #   the default misses. Slower, which is why this is a scheduled job.
+      #
+      # -Zmiri-disable-isolation: lets the test processes use the filesystem
+      #   and the network. Off by default because isolation makes Miri much
+      #   slower and much safer; here it is required, because the suite reads
+      #   fixtures from disk and one test asserts on a file being absent.
+      #
+      # -Zmiri-symbolic-alignment-check: verifies alignment symbolically rather
+      #   than trusting the host layout.
+      - name: Run the telemetry and sandbox suites under Miri
+        run: cargo miri test -p sniper-telemetry -p sniper-sandbox
+        env:
+          MIRIFLAGS: >-
+            -Zmiri-strict-provenance
+            -Zmiri-symbolic-alignment-check
+            -Zmiri-disable-isolation
+            -Zmiri-tree-borrows
+
+      - name: Confirm the unsafe guarantee is not just a lint
+        run: |
+          # `cargo miri` only reports UB in code it actually executes, so a
+          # crate that contains `unsafe` but never runs the path could still
+          # pass. The source-level check is therefore still worth running
+          # alongside: it is cheap, it covers unreached paths, and between the
+          # two there is no path where `unsafe` exists unchecked and unrun.
+          #
+          # `cargo clippy -- -D unsafe_code` is what enforces the workspace-wide
+          # `forbid`. Run here as well as in CI so the Miri job is self-
+          # contained and does not silently depend on another workflow passing.
+          cargo clippy -p sniper-telemetry --all-targets -- -D unsafe_code
+
+      - name: State what was actually checked
+        if: always()
+        run: |
+          {
+            echo "## Miri"
+            echo
+            echo "Checked: \`sniper-telemetry\`, \`sniper-sandbox\`."
+            echo
+            echo "**Not** checked: \`sniper-core\`, \`sniper-cli\`, \`xtask\` — Miri"
+            echo "cannot execute the Solana tree, which needs target-specific"
+            echo "assembly. A green run here says nothing about those crates."
+          } >> "$GITHUB_STEP_SUMMARY"

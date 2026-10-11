@@ -204,8 +204,21 @@ fn check_secret_env(root: &Path) -> Check {
 }
 
 /// Builds the bot must not be published to crates.io by accident.
-fn check_publish_flag() -> Check {
-    let manifest = std::fs::read_to_string("crates/telemetry/Cargo.toml").unwrap_or_default();
+///
+/// Takes the repository root like every other check here. It previously used a
+/// path relative to the current working directory, which meant that running the
+/// preflight from anywhere other than the repository root -- something `main`
+/// explicitly supports, since it prints the root it resolved -- silently read
+/// an empty string. An empty string does not contain `publish = false`, so the
+/// check reported an internal crate as publishable.
+///
+/// A false alarm rather than a missed danger, but still worth fixing: a
+/// preflight that cries wolf is one people learn to skim, and this is the
+/// component whose entire job is to be believed.
+fn check_publish_flag(root: &Path) -> Check {
+    let manifest =
+        std::fs::read_to_string(root.join("crates").join("telemetry").join("Cargo.toml"))
+            .unwrap_or_default();
     if manifest.contains("publish = false") {
         Check::Pass("internal crates marked publish = false".into())
     } else {
@@ -345,7 +358,7 @@ fn main() {
         check_autocrlf(),
         check_gh(),
         check_secret_env(&root),
-        check_publish_flag(),
+        check_publish_flag(&root),
     ];
 
     let mut blocked = 0_usize;

@@ -1,0 +1,205 @@
+# =============================================================================
+# 🔒 CI — the gate everything else in this repository depends on
+# =============================================================================
+#
+# WHY THIS FILE IS THE MOST IMPORTANT ONE HERE
+#
+# As of this commit the repository contained 150 tests and no workflow that ran
+# any of them. `cargo test` was something you did locally if you remembered.
+# Every test added before this file could have rotted silently, and several had:
+# `forge_loads_the_real_pump_program` had never passed on a clean checkout,
+# because `fixtures/programs/` is gitignored.
+#
+# A test suite nobody runs is documentation with extra steps. This workflow is
+# what turns it back into a constraint.
+#
+# WHAT IS DELIBERATELY HERE, AND WHY
+#
+#   fmt, clippy      cheap, deterministic, and they catch the class of problem
+#                    that is annoying to find in review
+#   build --locked   --locked is the point. Cargo.lock is committed now, and
+#                    without this flag CI silently re-resolves dependencies and
+#                    tests a graph nobody will ship
+#   test             the actual gate
+#   matrix           Linux, macOS and Windows. The project targets Windows
+#                    (the bootstrap commit says so) and a crate that only builds
+#                    on the machine its author uses is not portable, it is local
+#
+# WHAT IS DELIBERATELY NOT HERE
+#
+# Coverage thresholds, mutation testing and Miri live in separate workflows
+# with their own triggers. Reasons:
+#
+#   * they are slow, and a slow gate gets skipped, and a skipped gate is a lie
+#   * they fail for reasons unrelated to whether the change is correct, and
+#     mixing those signals trains people to ignore red
+#   * each needs a toolchain this job does not install, and installing several
+#     toolchains in one job is how a 4-minute check becomes a 20-minute one
+#
+# Keep them separate so a failure says what kind of failure it is.
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Always run against the PR branch even when it comes from a fork. Without
+  # this, the expensive matrix jobs never run on outside contributions.
+  merge_group:
+
+concurrency:
+  # A new push to the same branch cancels the run in flight. Two runs racing to
+  # publish coverage numbers or to fight over a test database produce noise, not
+  # information, and on a 150-test suite nobody is waiting for the old one.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Keep the toolchain in one place. RUSTFLAGS is set per-job where needed --
+  # a global value here would leak into the loom workflow, which needs
+  # --cfg loom and nothing else should.
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  # ===========================================================================
+  # The fast gate. Everything a reviewer should wait for.
+  # ===========================================================================
+  fmt:
+    name: formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the pinned toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      # Cache the registry and the build directory, not the toolchain. The
+      # Solana tree is ~200 crates; rebuilding it on every lint run costs more
+      # than the lint does.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: clippy
+
+      # -D warnings, so a lint is a failure and not advice. The workspace
+      # already sets pedantic lints to warn; this promotes them.
+      #
+      # --all-targets because the tests are the code most likely to rot: a
+      # clippy run over lib and bins only would never have caught the
+      # absurd_extreme_comparisons lint in histogram_properties.rs.
+      - name: Lint every target
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  # ===========================================================================
+  # The build gate.
+  # ===========================================================================
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build-${{ matrix.os }}
+
+      # --locked: CI must build the dependency graph that is committed. Without
+      # it, a lockfile that is out of date is silently repaired in the runner
+      # and the thing tested is not the thing that will be released.
+      - name: Build
+        run: cargo build --workspace --all-targets --locked
+
+      # Catch the class of defect that only shows up in a release build: the
+      # debug and release profiles differ here (opt-level, lto, panic=abort),
+      # so something can compile in one and not the other.
+      - name: Build release
+        run: cargo build --workspace --release --locked
+
+  # ===========================================================================
+  # The actual gate.
+  # ===========================================================================
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test-${{ matrix.os }}
+
+      - name: Run the suite
+        run: cargo test --workspace --locked
+
+      # The ignored test needs a 10 MB binary that is deliberately not in git,
+      # so it cannot run here. That is the whole point of it being ignored --
+      # but it also means nobody would notice if it stopped compiling, so the
+      # crate is still built with --all-targets above. This line is here to say
+      # the skip was deliberate rather than forgotten.
+      - name: Note the opt-in test
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          echo "forge_loads_the_real_pump_program needs \`cargo dump-pump\` and"
+          echo "runs offline-only in the nightly workflow."
+
+  # ===========================================================================
+  # Feature combinations.
+  # ===========================================================================
+  features:
+    name: feature combinations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: features
+
+      # The workspace has exactly one non-default feature, `debug-trace`, and
+      # it is the most dangerous one to break: it compiles `Probe::start` from
+      # an empty inline body into one that reads the clock twice. Nothing else
+      # in the default build touches that code path, so without this job the
+      # instrumented configuration is never compiled at all.
+      - name: Default features
+        run: cargo test --workspace --locked
+
+      - name: debug-trace enabled
+        run: cargo test --workspace --locked --features sniper-telemetry/debug-trace
+
+      - name: All features
+        run: cargo check --workspace --all-targets --all-features --locked

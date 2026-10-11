@@ -1,0 +1,106 @@
+# =============================================================================
+# 📊 Coverage — measured on a schedule, published, and never blocking
+# =============================================================================
+#
+# WHY COVERAGE IS NOT A GATE HERE
+#
+# The obvious thing to do is fail below 80%. In a repository that ships a
+# trading bot, that specific number is worse than useless, and here is why.
+#
+# Coverage counts lines executed. It cannot see whether an assertion is
+# meaningful. A test that calls `record()` once and asserts `count() == 1` is
+# 100% of that function's lines and zero of its value. A percentage threshold
+# therefore rewards writing tests that touch code rather than tests that check
+# it, and the cheapest way to satisfy one is a large file of trivial assertions
+# that green on the first run and catch nothing after a refactor.
+#
+# So: coverage is measured, published, and reported. It does not block.
+#
+# WHY IT STILL MATTERS
+#
+# Because it is the one number that finds *untested areas* rather than failing
+# ones. Line coverage of 62% with a chart showing that `crates/xtask` has zero
+# is actionable in a way that "62% < 80%" is not. The number is a map, not a
+# verdict.
+#
+# The comment next to each uncovered region carries the reason, so a future
+# reader can tell "untested on purpose" from "nobody got to this yet". Those
+# look identical in a coverage report and are not the same thing.
+# =============================================================================
+
+name: Coverage
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # 06:41. Off the hour, and a different minute from the loom job so the two
+    # do not compete for the same pool of warm runners.
+    - cron: "41 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: coverage
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: line coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # llvm-tools is what makes instrumentation possible. Without this
+      # component cargo-llvm-cov fails with a message about a missing llvm-profdata,
+      # which reads like a broken tool rather than a missing component.
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: coverage
+
+      - uses: taiki-e/install-action@cargo-llvm-cov
+
+      # --all-features, because `debug-trace` compiles a different body for
+      # Probe::start -- the empty inline version versus one that reads the
+      # clock. Measuring the default configuration alone would report the
+      # instrumented path as uncovered when it is neither uncovered nor absent.
+      - name: Measure
+        run: |
+          cargo llvm-cov --workspace --all-features \
+            --lcov --output-path lcov.info \
+            --ignore-filename-regex '(tests/|benches/|fixtures/|/target/)'
+
+      # Print the total in the log. A number in the job summary is read; a file
+      # in an artefact is downloaded by people who already suspect a problem.
+      - name: Summarise
+        run: |
+          {
+            echo "## Line coverage"
+            echo
+            cargo llvm-cov report --summary-only 2>/dev/null | tail -3
+            echo
+            echo "_Measured on all features. Not a gate: see the header of this file._"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: lcov.info
+          # A week, because the number is only interesting next to the previous
+          # one, and a build that ran ten days ago is not a useful comparison.
+          retention-days: 7
+
+      # Deliberately no `exit 1` on a threshold. See the header.
+      - name: Fail only if the measurement itself broke
+        run: |
+          if [ ! -s lcov.info ]; then
+            echo "::error::coverage produced no data -- the tool broke, not the code"
+            exit 1
+          fi

@@ -35,6 +35,12 @@ solana-compute-budget-interface = "3"
 solana-transaction = { version = "4", features = ["serde"] }
 # Wire serialisation.
 bincode = "1.3"
+# solana-sbpf exposes the loader constants the synthesised stub has to agree with.
+# Test-only in spirit: the stub hard-codes them deliberately, and a unit test
+# asserts they still match, so a dependency bump fails as a clear assertion
+# rather than as a parse error from inside LiteSVM.
+solana-sbpf = "0.23"
+
 # hex is used by the library, not only by tests, so it belongs here.
 hex = "0.4"
 # Needed only to turn a 32-byte fixture seed into the 64-byte secret key that

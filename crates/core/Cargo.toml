@@ -14,7 +14,7 @@ sniper-telemetry = { path = "../telemetry", version = "0.1.0" }
 pump-rust-client = { version = "0.2", default-features = false }
 # Live log subscription. A WebSocket is enough to identify a launch on a free
 # plan, so the paid gRPC feed is an optimisation rather than a prerequisite.
-tokio-tungstenite = { version = "0.24", default-features = false, features = [
+tokio-tungstenite = { version = "0.30", default-features = false, features = [
     "connect",
     "rustls-tls-webpki-roots",
 ] }

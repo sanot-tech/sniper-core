@@ -1,0 +1,106 @@
+# =============================================================================
+# Dependabot — dependency updates, with the cadence each ecosystem deserves
+# =============================================================================
+#
+# WHY THE SCHEDULES DIFFER
+#
+# The obvious configuration is one weekly job for everything. It is wrong here
+# for two reasons.
+#
+# Cargo.lock is now committed, and that file is the artefact this repository
+# ships rather than a cache. The Solana tree pins exact versions across ~586
+# packages, several of which depend on each other with narrow bounds, so a
+# minor bump in one frequently cannot resolve at all. Weekly for Cargo matches
+# how often that actually succeeds: daily would open a PR that is red because
+# of an upstream constraint, on a day when nothing about this project changed.
+#
+# GitHub Actions are the opposite. An action is third-party code with full
+# access to the repository, its secrets and its runners. `actions/checkout` and
+# `dtolnay/rust-toolchain` decide what this CI actually executes. Those move
+# often, and a compromise of a workflow runner is a compromise of every gate in
+# the repository, so they get checked daily and separately -- so a routine action
+# bump never has to wait behind a noisy Cargo one.
+#
+# The weekly digest groups the routine updates. Nine individual PRs a week is
+# nine interruptions, and a maintainer who ignores routine PRs eventually
+# ignores the one that matters.
+# =============================================================================
+
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # The dependency graph itself.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: cargo
+    directory: "/"
+    # Weekly, as reasoned above: the Solana tree's version bounds mean a minor
+    # bump often cannot resolve, and a daily PR that is red for an upstream
+    # reason trains people to ignore red.
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:14"
+      # Off the hour on purpose. Every scheduler in the world fires at :00, and
+      # that is when the rate limits hit.
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - ci
+    # Grouped so a transitive bump does not open five PRs that must be merged
+    # together to leave CI green.
+    groups:
+      solana:
+        patterns:
+          - "solana-*"
+          - "agave-*"
+          - "litesvm"
+          - "anchor-*"
+          - "pump-*"
+        update-types:
+          - minor
+          - patch
+      tooling:
+        patterns:
+          - "criterion"
+          - "proptest"
+          - "serial_test"
+          - "loom"
+          - "insta"
+          - "trybuild"
+
+  # ---------------------------------------------------------------------------
+  # CI actions: daily, ungrouped, because a compromised action is not a
+  # maintenance chore.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: daily
+      time: "06:23"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "ci"
+    labels:
+      - ci
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # ---------------------------------------------------------------------------
+  # Container images, if any are added.
+  # ---------------------------------------------------------------------------
+  # Left in place deliberately even though there is no Dockerfile yet: adding
+  # one later without this means the image is never updated at all until someone
+  # remembers, and by then it is three majors behind.
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:14"
+    open-pull-requests-limit: 2
+    labels:
+      - ci

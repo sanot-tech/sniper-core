@@ -254,13 +254,66 @@ impl TxLogs {
 /// instruction is the single most useful thing this stream can discover, and
 /// interning it into a fixed table would throw that away.
 fn leak(name: &str) -> &'static str {
-    // Fast path: a known name is already static in spirit, but we do not keep
-    // the original allocation, so intern once per call site via the table and
-    // leak only genuinely new names.
+    // Fast path: a known name is already `'static` in the table, so nothing is
+    // allocated. This matters more than it looks -- `buy` and `sell` are the
+    // overwhelming majority of traffic on this stream, and routing them through
+    // the interning set would turn the rare case below into the common one.
     if let Some((known, _)) = KNOWN.iter().find(|(k, _)| *k == name) {
         return known;
     }
-    Box::leak(name.to_string().into_boxed_str())
+    intern_unknown(name)
+}
+
+/// Names interned so far, so an unrecognised instruction is kept alive for
+/// reporting.
+///
+/// `OnceLock` because the set has to exist before the first unknown name and
+/// has to be the *same* set for the lifetime of the process -- a local set
+/// would dedupe within one call and still leak on the next.
+static INTERNED: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<&'static str>>> =
+    std::sync::OnceLock::new();
+
+/// Interns `name` exactly once and returns the same pointer thereafter.
+///
+/// # Panics
+///
+/// Panics if the interning mutex is poisoned, i.e. if another thread panicked
+/// while holding it. That is a deliberate choice: the alternative is to drop
+/// the name on the floor, which would make this module silently lose evidence
+/// precisely when something has already gone wrong. A bot supervised by systemd
+/// restarting is the better failure.
+fn intern_unknown(name: &str) -> &'static str {
+    let set = INTERNED.get_or_init(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+    let mut guard = set.lock().expect("interning set mutex poisoned");
+
+    if let Some(existing) = guard.get(name) {
+        return existing;
+    }
+
+    let leaked: &'static str = Box::leak(name.to_string().into_boxed_str());
+    guard.insert(leaked);
+    leaked
+}
+
+/// How many distinct unrecognised names this process has interned.
+///
+/// Test-only accessor. Growth is bounded by the number of *distinct*
+/// unrecognised instruction names rather than the number of times they occur,
+/// and that is the claim `leak_budget.rs` verifies -- so the measurement has to
+/// be observable, and a process-wide counter nobody can read cannot be
+/// verified by anyone, including its author.
+///
+/// Returns a count rather than the set itself: handing out a `&'static
+/// HashSet` would mean handing out a reference into a mutex guard's target
+/// without the guard, which is the exact shape `unsafe_code = "forbid"` exists
+/// to prevent. A `usize` cannot do that.
+#[must_use]
+pub fn interned_unknown_count() -> usize {
+    INTERNED
+        .get_or_init(|| std::sync::Mutex::new(std::collections::HashSet::new()))
+        .lock()
+        .map(|set| set.len())
+        .unwrap_or_default()
 }
 
 /// Extracts `(program, depth)` from an `invoke` log line.

@@ -34,3 +34,4 @@ bs58 = "0.5"
 # Property tests for the curve maths. A deterministic seed is configured in
 # tests/math_invariants.rs so a failure is always reproducible.
 proptest = "1"
+serial_test = "4"

@@ -1,0 +1,116 @@
+# =============================================================================
+# 🧬 Mutation testing — are the tests actually asserting anything?
+# =============================================================================
+#
+# WHY THIS EXISTS, WHEN COVERAGE ALREADY EXISTS
+#
+# Coverage answers "was this line executed?". It cannot answer "would this test
+# notice if the line were wrong", and those are different questions.
+#
+# The concrete example, from this repository: `Histogram::record` ended with
+#
+#     self.sum_ns.fetch_add(nanos, Ordering::Relaxed);
+#
+# Nine tests in that file touched that line. All nine were green. The line was
+# wrong -- it wrapped on overflow -- and the suite stayed silent, because none
+# of them asserted anything about what the line *computed*. They asserted that
+# it had been called.
+#
+# Mutation testing closes that gap by deliberately breaking the code and
+# requiring the suite to notice. `fetch_add` becomes `fetch_sub`, `Relaxed`
+# becomes `SeqCst`, `<=` becomes `<`. Every mutant that survives is either a
+# real gap in the tests or a test that is theatre.
+#
+# WHY IT IS NOT A GATE
+#
+# Survival rate is not a score you can move meaningfully. Zero survivors sounds
+# best and is usually a sign that only trivial code was tested. A sudden jump is
+# usually a new module, not a regression. The number is read as a trend and
+# investigated when it moves, not enforced against a threshold -- the same
+# reasoning as coverage, for the same reason.
+#
+# WHY NIGHTLY
+#
+# cargo-mutants rebuilds the crate once per mutant. A 12-minute run on this
+# workspace would be intolerable on a pull request and would train everyone to
+# ignore it.
+# =============================================================================
+
+name: Mutation
+
+on:
+  schedule:
+    # 04:17. Deliberately not aligned with coverage (06:41) or loom (05:23).
+    # These jobs all want warm runners; running them at the same minute means
+    # they all queue at the same minute.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: mutation
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  mutate:
+    name: mutation testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: mutation
+
+      - uses: taiki-e/install-action@cargo-mutants
+
+      # Scope: sniper-telemetry alone.
+      #
+      # Not a shortcut. The workspace also contains a crate with zero external
+      # dependencies and a hot path measured in nanoseconds, which makes it the
+      # right place to ask whether the assertions bite -- and the only crate
+      # small enough that a mutant run finishes in a sane time. The Solana
+      # crates would take hours and would mostly measure their dependencies.
+      #
+      # --test-include-test-modules keeps the inline `#[cfg(test)]` tests in
+      # play. They are where several of this crate's checks live, and skipping
+      # them would make the number worse in exactly the way that hides problems.
+      - name: Mutate sniper-telemetry
+        run: |
+          cargo mutants \
+            -p sniper-telemetry \
+            --test-include-test-modules \
+            --output-summary mutants-summary.txt \
+            --jobs 4
+
+      - name: Report
+        if: always()
+        run: |
+          if [ -f mutants-summary.txt ]; then
+            {
+              echo "## Mutation testing"
+              echo
+              cat mutants-summary.txt
+              echo
+              echo "_A surviving mutant is an assertion that does not bite._"
+              echo "_Read as a trend; not gated._"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "cargo-mutants produced no summary -- the run failed before the" >> "$GITHUB_STEP_SUMMARY"
+            echo "mutation phase. That is a broken tool, not a clean result." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutants-out
+          path: mutants/
+          retention-days: 7
+          if-no-files-found: ignore

@@ -4,12 +4,12 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│  ARCHETYPE: high performance with minimal overhead and permanent            │
+│  ARCHETYPE: high performance with minimal overhead and permanent             │
 │  debug presence.                                                             │
 │                                                                              │
 │   🛡️ a leak of the private key   = losing every dollar   (main risk)         │
-│   💸 a wasted transaction       = slow, silent money loss                   │
-│   🐌 undetected latency         = a bot that simply never wins              │
+│   💸 a wasted transaction       = slow, silent money loss                    │
+│   🐌 undetected latency         = a bot that simply never wins               │
 │                                                                              │
 │   Therefore: secrets are guarded by a scanner, every transaction is          │
 │   simulated before it is signed, and every pipeline stage is measured.       │

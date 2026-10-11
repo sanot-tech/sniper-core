@@ -1,0 +1,109 @@
+# =============================================================================
+# 🔒 Supply chain — what may enter Cargo.lock, and what may not
+# =============================================================================
+#
+# WHY THIS IS ITS OWN FILE
+#
+# Cargo.lock is now committed, which makes the dependency graph a fixed,
+# auditable artefact rather than something each machine resolves for itself.
+# That is the fix. It creates the follow-up question: what is in that file, and
+# who is allowed to put it there?
+#
+# This is the one workflow here that is about *adversaries* rather than bugs.
+# Every other check in this repository asks "is the code correct". This one
+# asks "did someone introduce something that should never have been here".
+#
+# THIRD JOB, THIRD TEMPORAL SHAPE
+#
+#   ci.yml         on every push        -- is the change correct
+#   concurrency    on a schedule         -- is the concurrency model correct
+#   supply-chain   on a schedule + PRs   -- is the dependency graph safe
+#
+# Three different cadences on purpose. A check that runs on the same schedule
+# as another catches correlated failures at the same time, which is exactly when
+# you can least afford to be debugging both.
+# =============================================================================
+
+name: Supply chain
+
+on:
+  push:
+    branches: [main]
+    # Any change to the lockfile is worth re-checking, and on main only: the
+    # lockfile is regenerated on nearly every dependency PR and re-auditing it
+    # each time would be noise.
+    paths:
+      - "Cargo.lock"
+      - "**/Cargo.toml"
+  pull_request:
+    paths:
+      - "Cargo.lock"
+      - "**/Cargo.toml"
+  schedule:
+    # 02:52 on Mondays. Weekly rather than daily because the vulnerability
+    # databases change daily and a fresh advisory for a transitive dependency
+    # of a dependency is not actionable within the hour.
+    - cron: "52 2 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: supply-chain
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: known vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # cargo-deny is used rather than cargo-audit alone: one tool that reports
+      # vulnerabilities, licences and the source of every dependency in one
+      # pass, instead of three that each need their own configuration and each
+      # fail differently.
+      - uses:EmbarkStudios/cargo-deny-action@v2
+
+      # This fails on a real advisory. That is the point of the job, and it is
+      # the only check here that is allowed to block, because a known-exploitable
+      # dependency is not a matter of taste.
+
+  licence:
+    name: licence policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          # Advisories are the previous job's responsibility. Running both here
+          # means a licence failure and a CVE failure arrive as one red X and
+          # you have to open the log to find out which it was.
+          command: check licenses
+
+  sources:
+    name: dependency provenance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check sources
+
+      # The check that actually matters for a project holding real money: every
+      # crate must come from crates.io or a path inside this repository. A
+      # dependency pulled from a git URL or an arbitrary registry is a
+      # dependency whose contents were chosen by whoever controlled that URL at
+      # the moment it was fetched, and `cargo` will run its build script.
+      #
+      # This is the supply-chain attack with a real track record -- the
+      # event-stream and colours.rs incidents of 2018 were both of this shape --
+      # and it is invisible in a diff because the Cargo.toml line looks
+      # completely ordinary.
+      - name: State the policy in the log
+        run: |
+          echo "Every dependency must resolve to crates.io or a local path."
+          echo "A git or registry source in any Cargo.toml fails this job."

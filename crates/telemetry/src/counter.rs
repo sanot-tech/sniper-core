@@ -1,5 +1,11 @@
 //! Lock-free counters. These are the always-on half of the archetype.
 
+// Same swap as in `histogram.rs`: loom's atomics under `--cfg loom`, std's
+// otherwise. The comment there applies -- these two imports never coexist in
+// one build, so there is no runtime cost to the always-on layer.
+#[cfg(loom)]
+use loom::sync::atomic::{AtomicI64, AtomicU64, Ordering};
+#[cfg(not(loom))]
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 
 /// A monotonically increasing counter.
@@ -12,9 +18,28 @@ use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 pub struct Counter(AtomicU64);
 
 impl Counter {
+    /// `const` in the production build only.
+    ///
+    /// loom's `AtomicU64::new` is not a const fn, so under `--cfg loom` this
+    /// signature would not compile. Two cfg'd definitions rather than a
+    /// feature flag: the loom build is a verification build, and giving it a
+    /// different API shape would mean testing an API nobody ships. Here the
+    /// signatures are identical to callers and only the constness differs,
+    /// which is the one thing loom forces and the one thing no caller can
+    /// meaningfully depend on -- there is no const `Counter` anywhere in this
+    /// workspace, because a counter that exists at compile time is not
+    /// counting anything.
+    #[cfg(not(loom))]
     #[inline]
     #[must_use]
     pub const fn new() -> Self {
+        Self(AtomicU64::new(0))
+    }
+
+    #[cfg(loom)]
+    #[inline]
+    #[must_use]
+    pub fn new() -> Self {
         Self(AtomicU64::new(0))
     }
 
@@ -45,9 +70,18 @@ impl Counter {
 pub struct Gauge(AtomicI64);
 
 impl Gauge {
+    /// `const` in the production build only -- see `Counter::new` for why.
+    #[cfg(not(loom))]
     #[inline]
     #[must_use]
     pub const fn new() -> Self {
+        Self(AtomicI64::new(0))
+    }
+
+    #[cfg(loom)]
+    #[inline]
+    #[must_use]
+    pub fn new() -> Self {
         Self(AtomicI64::new(0))
     }
 

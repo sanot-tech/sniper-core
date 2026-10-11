@@ -13,6 +13,12 @@ t = "test --workspace"
 # Release build: mandatory before any latency measurement. Numbers from a
 # debug build are meaningless and worse than no numbers at all.
 tr = "test --workspace --release"
+# The exhaustive concurrency check lives in `tools/loom-check.sh` rather than
+# here. A cargo alias cannot carry RUSTFLAGS, and the array-alias form that
+# could (`["sh", "-c", "RUSTFLAGS=... cargo test ..."]`) is resolved as a
+# cargo-subcommand lookup on cargo 1.99, so it fails with "no such command:
+# sh". `tools/loom-check.sh` sets the flag, runs the tests, and gives the reason
+# out loud if the flag was dropped.
 # The production-shaped build used for benchmarking and deployment.
 b = "build --workspace --release"
 # --- quality gates -----------------------------------------------------------

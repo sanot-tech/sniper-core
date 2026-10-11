@@ -8,6 +8,17 @@
 //!   (sub-microsecond decode, single-digit-millisecond land). A hand-written
 //!   bucket table over exactly that range is both faster and more readable.
 
+// Production uses the standard library's atomics; the loom configuration uses
+// loom's. The swap is what lets `tests/loom_concurrency.rs` enumerate every
+// legal interleaving of the reads and writes below instead of sampling a
+// handful of them.
+//
+// Under any other cfg these are the ordinary std atomics, so nothing about the
+// shipped binary changes -- there is no runtime branch here, the two imports
+// never coexist in one build.
+#[cfg(loom)]
+use loom::sync::atomic::{AtomicU64, Ordering};
+#[cfg(not(loom))]
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Upper bounds in nanoseconds. The last entry is the overflow bucket.

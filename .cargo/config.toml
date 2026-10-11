@@ -13,6 +13,12 @@ t = "test --workspace"
 # Release build: mandatory before any latency measurement. Numbers from a
 # debug build are meaningless and worse than no numbers at all.
 tr = "test --workspace --release"
+# The exhaustive concurrency check lives in `tools/loom-check.sh` rather than
+# here. A cargo alias cannot carry RUSTFLAGS, and the array-alias form that
+# could (`["sh", "-c", "RUSTFLAGS=... cargo test ..."]`) is resolved as a
+# cargo-subcommand lookup on cargo 1.99, so it fails with "no such command:
+# sh". `tools/loom-check.sh` sets the flag, runs the tests, and gives the reason
+# out loud if the flag was dropped.
 # The production-shaped build used for benchmarking and deployment.
 b = "build --workspace --release"
 # --- quality gates -----------------------------------------------------------
@@ -52,4 +58,18 @@ color = "always"
 
 [net]
 # Fail fast instead of hanging a build behind a dead mirror.
-retry = 2
+retry = 5
+
+[http]
+# Slow links are not dead links. The default 30s timeout gives up on a
+# perfectly healthy crates.io mirror that happens to be mid-transfer, and the
+# symptom is a confusing "transfer too slow: transferred 0 bytes" on a
+# dependency that is only a few hundred kilobytes. Raising the timeout turns
+# those into ordinary slow builds instead of random failures.
+timeout = 120
+# Multiplexing shares one connection across concurrent downloads, which is a
+# large win when fetching the ~200 crates the Solana tree pulls in. It is
+# disabled here because a single reset on a multiplexed connection fails every
+# request sharing it, which looks worse on a flaky link than it saves on a fast
+# one.
+multiplexing = false

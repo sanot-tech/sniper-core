@@ -27,6 +27,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+pub mod stub_program;
+
+pub use stub_program::stub_program_bytes;
+
 use litesvm::LiteSVM;
 use solana_account::Account;
 use solana_address::Address;
@@ -96,30 +100,66 @@ impl std::fmt::Debug for Forge {
 impl Forge {
     /// Builds a sandbox with the pump program loaded from the default path.
     ///
+    /// Falls back to a synthesised stub when the real dump is absent, so a
+    /// fresh clone has a working test suite. See [`stub_program`] for exactly
+    /// what the stub does and, more importantly, does not prove.
+    ///
+    /// The substitution is announced on stderr rather than made silently. A
+    /// suite that quietly swapped a 10 MB mainnet program for sixteen bytes of
+    /// `exit` would be asserting things about the wrong program while looking
+    /// entirely healthy.
+    ///
     /// # Panics
-    /// Panics if the dump is missing. A test suite that quietly skips the real
-    /// program is worse than one that refuses to run.
+    ///
+    /// Panics only if the dump exists but is empty or unreadable. A *missing*
+    /// dump is no longer fatal -- that used to fail all six tests in this crate
+    /// on every clean checkout, because `fixtures/programs/` is gitignored.
     #[must_use]
     pub fn load_default() -> Self {
         Self::load(program_path())
     }
 
-    /// Builds a sandbox with the pump program loaded from `path`.
+    /// Builds a sandbox with the pump program loaded from `path`, or from the
+    /// synthesised stub when `path` does not exist.
+    ///
+    /// Existing-but-broken stays fatal on purpose. A truncated dump, or a
+    /// leftover HTML error page from a failed download, would be exactly the
+    /// failure most worth seeing -- substituting a stub would hide it.
     ///
     /// # Panics
-    /// Panics when the file is missing or empty.
+    ///
+    /// Panics when the file exists but is empty, cannot be read, or is not a
+    /// loadable program.
     #[must_use]
     pub fn load(path: impl AsRef<Path>) -> Self {
         let path = path.as_ref();
-        let bytes = std::fs::read(path).unwrap_or_else(|e| {
-            panic!(
+        match std::fs::read(path) {
+            Ok(bytes) => {
+                assert!(
+                    !bytes.is_empty(),
+                    "pump program dump at {} is empty",
+                    path.display()
+                );
+                Self::load_bytes(&bytes)
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                eprintln!(
+                    "\u{26a0}\u{fe0f}  no pump dump at {} ({e}).\n\
+                     \u{26a0}\u{fe0f}  Falling back to a synthesised stub. The VM, the account model,\n\
+                     \u{26a0}\u{fe0f}  determinism and the log paths are still tested for real, but\n\
+                     \u{26a0}\u{fe0f}  nothing here exercises pump.fun's own behaviour.\n\
+                     \u{26a0}\u{fe0f}  Run `cargo dump-pump` to test against the real mainnet program.",
+                    path.display()
+                );
+                Self::load_bytes(&stub_program_bytes())
+            }
+            Err(e) => panic!(
                 "cannot read pump program dump at {}: {e}\n\
-                 hint: run `cargo run -p xtask -- dump-pump`",
-                path.display(),
-            )
-        });
-        assert!(!bytes.is_empty(), "pump program dump is empty");
-        Self::load_bytes(&bytes)
+                 the file exists but could not be read. Deleting it makes the Forge\n\
+                 fall back to the stub; leaving it in place keeps the failure loud.",
+                path.display()
+            ),
+        }
     }
 
     /// Builds a sandbox from raw SBPF/ELF bytecode.
@@ -315,7 +355,26 @@ mod tests {
         Forge::load(program_path())
     }
 
+    /// Proves the genuine mainnet dump is in place.
+    ///
+    /// Ignored by default, and that is the point of it. This asserts the file
+    /// is ~10 MB of real bytecode, which cannot be true on a fresh clone --
+    /// `fixtures/programs/` is gitignored because a 10 MB blob does not belong
+    /// in git history. Left un-ignored it fails every checkout; left deleted it
+    /// stops proving anything at all.
+    ///
+    /// Run it where the fidelity actually matters:
+    ///
+    /// ```text
+    /// cargo dump-pump && cargo test -p sniper-sandbox -- --ignored
+    /// ```
+    ///
+    /// Everything else in this crate runs against the synthesised stub and is
+    /// green without it. This is the one test that cannot pass offline, and it
+    /// is opt-in rather than absent so the capability stays visible instead of
+    /// quietly rotting.
     #[test]
+    #[ignore = "requires the real pump.so dump; run `cargo dump-pump` first"]
     fn forge_loads_the_real_pump_program() {
         // The dump on disk is the artefact that matters: it is what a fresh
         // clone has to refetch, and its size is proof it is the real binary

@@ -72,7 +72,15 @@ positions.db*
 *.sqlite3
 state/
 *.pid
+# Runtime lock files (pidfiles, flock targets, cargo lock on target/) are junk.
 *.lock
+# ...but Cargo.lock is not junk. This workspace builds binaries — a bot that
+# sends real money — so the resolved dependency graph is part of the source of
+# truth, not a local artifact. Without it two developers can produce two
+# different binaries from one commit, and `cargo update` becomes an invisible,
+# unreviewed change to what we ship. Cargo itself documents this: binaries
+# commit the lockfile, libraries do not.
+!Cargo.lock
 
 # ============================================================================
 # SECRETS SCANNER OUTPUT (chapter 11 — SecretSentinel)

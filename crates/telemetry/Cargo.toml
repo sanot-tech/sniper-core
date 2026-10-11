@@ -26,8 +26,55 @@ debug-trace = []
 # Every millisecond and every nanosecond in the hot path matters, so the
 # measurement layer must not drag serde/regex/logging machinery into the build.
 
+[dev-dependencies]
+criterion = "0.8"
+# Test-only, so the zero-dependency guarantee above still holds for anyone
+# depending on this crate. Nothing here reaches the release artifact.
+#
+# proptest earns its place by being the only way to state "this holds for
+# every input" instead of "this held for the six inputs I thought of".
+proptest = "1"
+
+# ---------------------------------------------------------------------------
+# loom.
+#
+# Target-conditional on purpose, and this is the part worth explaining.
+#
+# The point of loom is that it has to *replace* the atomics the crate uses, so
+# it can enumerate every legal interleaving of every relaxed load and store.
+# That only happens if `src/` imports `loom::sync::atomic` under `cfg(loom)`
+# instead of `std::sync::atomic` -- and that import has to resolve, or the
+# whole crate fails to build in the loom configuration, which is the same as
+# having no loom tests at all.
+#
+# Putting loom here rather than in `[dev-dependencies]` scopes it to builds
+# where `--cfg loom` is set, which is exactly the builds that want it. A
+# normal `cargo build`, `cargo test` or `cargo build --release` never pulls it
+# in, so the zero-dependency promise stays true for every downstream consumer.
+#
+# This is a dev-dependency in a technical sense only. loom itself is never in
+# the shipped binary, but `src/` gains cfg'd imports that exist to serve it.
+# ---------------------------------------------------------------------------
+[target.'cfg(loom)'.dependencies]
+loom = "0.7"
+
+# criterion brings its own `main` via `criterion_main!`. Without `harness =
+# false`, rustc wraps the bench target in libtest, that harness never calls
+# our main, and `cargo bench` cheerfully reports "0 benchmarks" while exiting
+# successfully. It fails silently, which is the worst way for a benchmark to
+# fail -- a latency guard that silently measures nothing guards nothing.
+[[bench]]
+name = "histogram_cost"
+harness = false
+
 [lints.rust]
 unsafe_code = "forbid"
+# `cfg(loom)` is set on the rustc command line by the CI job and by anyone
+# running the exhaustive concurrency tests locally. Cargo has no way to know
+# that, so without this every `#[cfg(loom)]` in the crate is an "unexpected
+# configuration" warning -- and a lint that cries wolf on every loom run is a
+# lint people learn to ignore.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)'] }
 
 [lints.clippy]
 all = { level = "warn", priority = -1 }

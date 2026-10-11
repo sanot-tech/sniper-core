@@ -8,6 +8,17 @@
 //!   (sub-microsecond decode, single-digit-millisecond land). A hand-written
 //!   bucket table over exactly that range is both faster and more readable.
 
+// Production uses the standard library's atomics; the loom configuration uses
+// loom's. The swap is what lets `tests/loom_concurrency.rs` enumerate every
+// legal interleaving of the reads and writes below instead of sampling a
+// handful of them.
+//
+// Under any other cfg these are the ordinary std atomics, so nothing about the
+// shipped binary changes -- there is no runtime branch here, the two imports
+// never coexist in one build.
+#[cfg(loom)]
+use loom::sync::atomic::{AtomicU64, Ordering};
+#[cfg(not(loom))]
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Upper bounds in nanoseconds. The last entry is the overflow bucket.
@@ -72,7 +83,60 @@ impl Histogram {
             idx += 1;
         }
         self.counts[idx].fetch_add(1, Ordering::Relaxed);
-        self.sum_ns.fetch_add(nanos, Ordering::Relaxed);
+        // Saturating, not a plain `fetch_add`.
+        //
+        // A wrapping sum is worse than a wrong sum here, because every
+        // downstream reader trusts it. Two observations of `u64::MAX` leave a
+        // wrapped `sum_ns` of `u64::MAX - 1` -- *smaller than either single
+        // observation* -- and `mean_ns` then reports half of u64::MAX for a
+        // histogram holding two samples. No operator can act on that number
+        // and no alert can threshold it.
+        //
+        // The cost was measured rather than assumed, because the first draft of
+        // this comment asserted that `fetch_update` was "one instruction
+        // either way" and the benchmark said otherwise. On an x86-64 test
+        // box, uncontended, recording a typical 850 ns stage:
+        //
+        //     fetch_add  (wrapping)        9.2 ns
+        //     fetch_update (saturating)   12.3 ns
+        //     relaxed load (control)       0.8 ns
+        //
+        // So it is about +3.1 ns per observation, roughly +34% on the
+        // primitive, and the original claim was simply wrong. `fetch_add` is a
+        // single locked read-modify-write; `fetch_update` is a CAS loop and
+        // pays a real comparison on the uncontended path too.
+        //
+        // Why it still ships: observations arrive roughly once per stage
+        // completion, and a stage costs hundreds of microseconds end to end.
+        // Three nanoseconds against that is far below anything a latency
+        // budget can see. The trade buys a `mean_ns` that cannot report a
+        // number smaller than the samples inside it.
+        //
+        // The benchmark that produced the numbers above is
+        // `benches/histogram_cost.rs`, group `sum_ns_primitive`. Re-run it
+        // before changing anything here; the trade is only defensible while
+        // the gap stays small relative to a stage.
+        //
+        // `fetch_update` rather than the newer `try_update`: `fetch_update`
+        // is deprecated in favour of `try_update` for naming consistency
+        // with `compare_*` / `load_*` / `store_*` -- but `try_update` only
+        // became stable in Rust 1.95, and this crate declares
+        // `rust-version = "1.85"`. Taking a scoped deprecation warning keeps
+        // the declared MSRV honest; raising the MSRV of a measurement crate
+        // for a rename would be a far worse trade, and would force every
+        // downstream crate to move too.
+        //
+        // The allow is scoped to this single call rather than applied
+        // crate-wide, so the next genuine deprecation still gets noticed.
+        #[allow(
+            deprecated,
+            reason = "try_update needs Rust 1.95; this crate declares MSRV 1.85"
+        )]
+        let _ = self
+            .sum_ns
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |total| {
+                Some(total.saturating_add(nanos))
+            });
         // Monotonic max without a CAS loop: a lost race here costs one
         // slightly smaller reading, never a panic or a stall.
         self.max_ns.fetch_max(nanos, Ordering::Relaxed);

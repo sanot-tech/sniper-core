@@ -49,5 +49,15 @@ ed25519-dalek = "2"
 
 bs58 = "0.5"
 
+# The determinism suite needs the same types the library uses, as
+# dev-dependencies rather than as new regular ones: nothing here should be
+# visible to a consumer of the crate, and the types are already there.
+[dev-dependencies]
+solana-instruction = "3"
+solana-keypair = "3"
+solana-address = "2"
+solana-native-token = "3"
+solana-system-interface = "3"
+
 [lints]
 workspace = true

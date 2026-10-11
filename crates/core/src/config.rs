@@ -24,7 +24,14 @@ pub struct PositionSizing(u64);
 ///
 /// Module level rather than function level so the promotion rule has exactly
 /// one definition. Two copies of a money limit is two chances to disagree.
-const LIVE_POSITION_CAP_LAMPORTS: u64 = PositionSizing::ONE_SOL / 50;
+///
+/// Public because it is not an implementation detail. An operator refused at
+/// startup by [`ConfigError::PositionTooLarge`] is told the cap in the message,
+/// but anything reading a config file -- a dashboard, a lint, a second tool --
+/// has no way to learn it otherwise. Keeping it private meant every consumer
+/// re-derived it as `ONE_SOL / 50`, which is exactly the duplication this
+/// constant exists to prevent.
+pub const LIVE_POSITION_CAP_LAMPORTS: u64 = PositionSizing::ONE_SOL / 50;
 
 impl PositionSizing {
     /// 1 SOL in lamports.
@@ -216,10 +223,31 @@ impl Config {
             return Err(ConfigError::RiskScoreOutOfRange(self.max_risk_score));
         }
         if self.mode == RuntimeMode::Live {
-            for venue in &self.venues {
-                if venue.needs_idl_verification() {
-                    return Err(ConfigError::UnverifiedVenueOnLive { venue: *venue });
-                }
+            // Pick the unverified venue deterministically rather than taking
+            // whichever the configured order reaches first.
+            //
+            // With two unverified venues, returning the first one makes the
+            // reported reason depend on the order they appear in config.toml.
+            // The operator reads "PumpSwap is unverified" and fixes PumpSwap;
+            // the next run -- after a formatter, or a merge conflict that
+            // reordered the list -- says Raydium instead. Same configuration,
+            // different accusation, and neither message mentions the other
+            // venue, so fixing what was named does not make the next run pass.
+            //
+            // Sorting by name is not arbitrary. The message names one venue,
+            // so the message must be a function of the configuration's
+            // *contents* rather than of its presentation. Both offenders stay
+            // visible in the config file itself; this only decides which one
+            // gets named first.
+            let mut unverified: Vec<VenueKind> = self
+                .venues
+                .iter()
+                .copied()
+                .filter(VenueKind::needs_idl_verification)
+                .collect();
+            unverified.sort_by_key(VenueKind::as_str);
+            if let Some(venue) = unverified.first() {
+                return Err(ConfigError::UnverifiedVenueOnLive { venue: *venue });
             }
             if !self.position.is_live_safe() {
                 return Err(ConfigError::PositionTooLarge {

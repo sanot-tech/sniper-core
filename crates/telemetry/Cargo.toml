@@ -26,6 +26,14 @@ debug-trace = []
 # Every millisecond and every nanosecond in the hot path matters, so the
 # measurement layer must not drag serde/regex/logging machinery into the build.
 
+[dev-dependencies]
+# Test-only, so the zero-dependency guarantee above still holds for anyone
+# depending on this crate. Nothing here reaches the release artifact.
+#
+# proptest earns its place by being the only way to state "this holds for
+# every input" instead of "this held for the six inputs I thought of".
+proptest = "1"
+
 [lints.rust]
 unsafe_code = "forbid"
 

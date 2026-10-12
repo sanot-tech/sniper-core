@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # miri is a rustup component on the nightly channel, not a separate
       # install. The component list here is deliberately just that one: every

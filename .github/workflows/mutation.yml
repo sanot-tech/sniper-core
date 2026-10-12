@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -107,7 +107,7 @@ jobs:
             echo "mutation phase. That is a broken tool, not a clean result." >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mutants-out

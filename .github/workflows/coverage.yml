@@ -51,7 +51,7 @@ jobs:
     name: line coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # llvm-tools is what makes instrumentation possible. Without this
       # component cargo-llvm-cov fails with a message about a missing llvm-profdata,
@@ -89,7 +89,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-lcov
           path: lcov.info
